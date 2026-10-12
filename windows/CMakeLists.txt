@@ -503,6 +503,7 @@ add_test(NAME bluewake_save_state_test COMMAND bluewake_save_state_test)
 
 include("${BLUEWAKE_REPO_ROOT}/cmake/host_state_save_test.cmake")
 include("${BLUEWAKE_REPO_ROOT}/cmake/dvd_completion_test.cmake")
+include("${BLUEWAKE_REPO_ROOT}/cmake/stall_watch_test.cmake")
 include("${BLUEWAKE_REPO_ROOT}/cmake/cache_flush_fallback_test.cmake")
 target_include_directories(bluewake_cache_flush_fallback_test PRIVATE ${BLUEWAKE_COMPAT_INCLUDES})
 target_compile_options(bluewake_cache_flush_fallback_test PRIVATE ${BLUEWAKE_COMPAT_FORCE_INCLUDE})

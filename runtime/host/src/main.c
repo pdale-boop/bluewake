@@ -46,6 +46,7 @@
 #include "mouse_camera.h"
 #include "callback_delivery.h"
 #include "dvd_completion.h"
+#include "stall_watch.h"
 #include "cycle_domain.h"
 #include "interrupt_sources.h"
 #include "delivery_digest.h"
@@ -5222,6 +5223,71 @@ static void host_guest_checkpoint(CPUState* cpu) {
             alias_spans, (unsigned long long)alias_bytes);
 }
 
+// The stall watch (stall_watch.h): one [stall] block when every game thread is
+// blocked. The OS thread list (__OSLinkActive at 0x800000DC, linked through
+// OSThread.linkActive at +0x2FC) gives each thread's state (1 ready, 2 running,
+// 4 waiting, 8 moribund), effective priority, suspend count, the queue and
+// mutex it waits on, and its saved pc and lr (its OSContext's srr0 and lr). The
+// disc driver's globals and the game's disc thread are GZLE01 revision 0's
+// (zeldaret/tww symbols); the host's own pending completions come last.
+static void host_stall_dump(CPUState* cpu, const char* why) {
+    const u32 counter = mem_read32(cpu, BLUEWAKE_STALL_GAME_COUNTER);
+    fprintf(stderr, "[stall] %s retrace=%llu game_frames=%u pc=0x%08X lr=0x%08X ee=%u current_thread=0x%08X\n",
+            why, (unsigned long long)g_host_retrace_count, counter, cpu->pc, cpu->lr,
+            (cpu->msr & PPC_MSR_EE) != 0u ? 1u : 0u, mem_read32(cpu, 0x800000E4u));
+    u32 thread = mem_read32(cpu, 0x800000DCu);
+    for (unsigned n = 0; n < 32u && thread >= 0x80000000u && thread < 0x81800000u; n++) {
+        fprintf(stderr, "[stall] thread 0x%08X state=%u priority=%d suspend=%d queue=0x%08X mutex=0x%08X "
+                "saved_pc=0x%08X saved_lr=0x%08X\n",
+                thread, mem_read16(cpu, thread + 0x2C8u), (s32)mem_read32(cpu, thread + 0x2D0u),
+                (s32)mem_read32(cpu, thread + 0x2CCu), mem_read32(cpu, thread + 0x2DCu),
+                mem_read32(cpu, thread + 0x2F0u), mem_read32(cpu, thread + 0x198u),
+                mem_read32(cpu, thread + 0x84u));
+        thread = mem_read32(cpu, thread + 0x2FCu);
+    }
+    const u32 executing = mem_read32(cpu, 0x803F7AD8u);
+    fprintf(stderr, "[stall] disc executing=0x%08X", executing);
+    if (executing >= 0x80000000u && executing < 0x81800000u)
+        fprintf(stderr, " (command=%u state=%d offset=0x%08X length=%u callback=0x%08X)",
+                mem_read32(cpu, executing + 0x08u), (s32)mem_read32(cpu, executing + 0x0Cu),
+                mem_read32(cpu, executing + 0x10u), mem_read32(cpu, executing + 0x14u),
+                mem_read32(cpu, executing + 0x28u));
+    fprintf(stderr, " waiting=");
+    for (unsigned q = 0; q < 4u; q++) {
+        const u32 head = 0x803F10D8u + q * 8u;  // a DVDCommandBlock queue; empty points at itself
+        const u32 next = mem_read32(cpu, head);
+        fprintf(stderr, "%s%s", q ? "," : "", next != 0u && next != head ? "yes" : "no");
+    }
+    fprintf(stderr, " curr_command=%u pause=%u fatal=%u canceling=%u\n", mem_read32(cpu, 0x803F7AF4u),
+            mem_read32(cpu, 0x803F7AE4u), mem_read32(cpu, 0x803F7AF0u), mem_read32(cpu, 0x803F7AF8u));
+    fprintf(stderr, "[stall] game disc thread l_param:");
+    for (u32 offset = 0; offset < 0x48u; offset += 4u)
+        fprintf(stderr, " %08X", mem_read32(cpu, 0x803A72C0u + offset));
+    fprintf(stderr, "\n[stall] host disc completions pending=%u", g_dvd_completions.count);
+    if (g_dvd_completions.count != 0u)
+        fprintf(stderr, " first: callback=0x%08X file=0x%08X ready_in_cycles=%lld",
+                g_dvd_completions.entries[0].callback, g_dvd_completions.entries[0].file_info,
+                (long long)(g_dvd_completions.entries[0].ready_cycle - g_cycle_domain.absolute_cycles));
+    fprintf(stderr, "\n");
+}
+
+static void host_stall_watch_retrace(CPUState* cpu) {
+    static BluewakeStallWatch watch;
+    static bool attached;
+    static unsigned long long dump_at;
+    if (!attached) {
+        attached = true;
+        const char* seconds = getenv("BLUEWAKE_STALL_SECONDS");
+        const char* at = getenv("BLUEWAKE_STALL_DUMP_AT");
+        bluewake_stall_watch_init(&watch, (seconds != NULL && seconds[0] != '\0' ? strtoull(seconds, NULL, 10) : 5u) * 60u);
+        dump_at = at != NULL && at[0] != '\0' ? strtoull(at, NULL, 10) : 0u;
+    }
+    if (dump_at != 0u && g_host_retrace_count == dump_at)
+        host_stall_dump(cpu, "requested");
+    if (bluewake_stall_watch_step(&watch, mem_read32(cpu, BLUEWAKE_STALL_GAME_COUNTER)))
+        host_stall_dump(cpu, "no game frame for the limit (every game thread is blocked)");
+}
+
 static void host_sync_vi_cycles(CPUState* cpu) {
     const u64 elapsed_cycles = host_cycle_cursor_delta(&g_vi_cycle_cursor);
     if (g_cycle_vi_clock == NULL || elapsed_cycles == 0u)
@@ -5246,6 +5312,7 @@ static void host_sync_vi_cycles(CPUState* cpu) {
         bluewake_quick_doors_retrace();
         bluewake_hd_look_retrace(cpu);
         bluewake_haptics_retrace();
+        host_stall_watch_retrace(cpu);
         if (g_wall_pace_enabled && !bluewake_fast_load_fast_forward())
             host_wall_pace(g_host_retrace_count);
         if (g_perf_log_enabled)

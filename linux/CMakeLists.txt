@@ -208,6 +208,7 @@ if(BLUEWAKE_LINUX_REGRESSION_TESTS)
     # way they reach Windows: the deferred-DVD-completion queue and the cache
     # flush fallback. dvd_completion needs ZLIB for save_state.c's checksum.
     include("${BLUEWAKE_REPO_ROOT}/cmake/dvd_completion_test.cmake")
+    include("${BLUEWAKE_REPO_ROOT}/cmake/stall_watch_test.cmake")
     target_include_directories(bluewake_dvd_completion_test PRIVATE ${BLUEWAKE_HOST_SRC} ${GXRUNTIME_DIR}/include)
     target_link_libraries(bluewake_dvd_completion_test PRIVATE gxruntime ZLIB::ZLIB)
     set_target_properties(bluewake_dvd_completion_test PROPERTIES LINKER_LANGUAGE CXX)
