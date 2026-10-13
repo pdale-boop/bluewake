@@ -75,6 +75,7 @@ Options (`--help` lists all):
 | `--march LEVEL` | CPU level for the game module (default `x86-64-v3`) |
 | `--console` | Build `BlueWake.exe` as a console program |
 | `--out DIR` | Build directory (default `build\windows`) |
+| `--portable` | Put `portable.txt` in the app folder, so saves, settings and logs stay in a `user` folder beside `BlueWake.exe` (see Portable mode below) |
 
 A rebuild recompiles only the parts of the game module whose source changed. After a change to the app alone,
 such as a new setting or mod hook, a normal rebuild still trains again (the training plays the game with the

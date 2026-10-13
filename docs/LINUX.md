@@ -116,6 +116,8 @@ Useful options:
     --host-only    after pulling a change to the app's own code (runtime/host/src,
                    linux/src): keep the last build's optimization profile instead
                    of training again, so only what the change reaches recompiles
+    --portable     put portable.txt in the app folder, so saves, settings and logs
+                   stay in a user folder beside it (see Portable mode below)
 
 A rebuild recompiles only the parts of the game module whose source changed.
 After a change to the app alone, such as a new setting or mod hook, a normal
