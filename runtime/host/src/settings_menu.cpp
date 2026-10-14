@@ -515,6 +515,8 @@ void apply_now(const char* key, const std::string& value) {
         bluewake_climb_reload();
 }
 
+void hd_textures_section(); // drawn by the texture pack's row, defined below
+
 // A Custom row draws itself: the switch that needs a button beside it, the two
 // settings that are one dropdown, the one only 4:3 shows. Rows this doesn't
 // know are left to their tab, which still draws them by hand.
@@ -541,6 +543,72 @@ bool draw_custom(const bw_settings::Setting& s) {
             set_smooth_motion(smooth == 0 ? nullptr : smooth == 3 ? "display" : smooth == 2 ? "3" : "1");
         if (s.note != nullptr)
             ImGui::TextDisabled("%s", s.note);
+        return true;
+    }
+    if (std::strcmp(s.key, "DOL_AURORA_TEXTURE_PACK") == 0) {
+        hd_textures_section();
+        ImGui::Spacing();
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_ASPECT") == 0) {
+        // The chosen shape is held in g_aspect: the picture, the mods and the
+        // Display tab's "keep the shape" all follow it.
+        static const char* const kAspects[] = {"Off (4:3, the game's)", "16:10", "16:9", "21:9"};
+        static const char* const kAspectValues[] = {"4:3", "16:10", "16:9", "21:9"};
+        int aspect = 0;
+        for (int i = 0; i < 4; ++i)
+            if (g_aspect == kAspectValues[i])
+                aspect = i;
+        if (bw_menu_combo(s.label, &aspect, kAspects, 4)) {
+            g_aspect = kAspectValues[aspect];
+            g_edited.insert(s.key);
+            g_dirty = g_restart_pending = true;
+        }
+        restart_note();
+        ImGui::TextDisabled("Widescreen widens the camera and moves the HUD to the edges.");
+        ImGui::Spacing();
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_MODS") == 0) {
+        // Better Wind Waker, and its own options once the game has read them.
+        if (bw_menu_checkbox(s.label, &g_betterww)) {
+            g_edited.insert(s.key);
+            g_dirty = g_restart_pending = true;
+        }
+        restart_note();
+        if (g_options.empty()) {
+            ImGui::TextDisabled("Its settings are listed once the game has started.");
+            return true;
+        }
+        ImGui::BeginDisabled(!g_betterww);
+        ImGui::Indent();
+        for (size_t i = 0; i < g_options.size(); ++i) {
+            bool on = g_options[i].second;
+            if (bw_menu_checkbox(g_option_titles[i].c_str(), &on)) {
+                g_options[i].second = on;
+                g_edited.insert("BLUEWAKE_OPTIONS");
+                g_dirty = g_restart_pending = true;
+            }
+            if (const char* note = bw_option_note(g_options[i].first.c_str())) {
+                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30.0f);
+                ImGui::TextDisabled("%s", note);
+                ImGui::PopTextWrapPos();
+            }
+        }
+        ImGui::Unindent();
+        ImGui::EndDisabled();
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_DSP_MODE") == 0) {
+        // Two ways to make the sound, as a pair of choices rather than a switch.
+        int exact = env(s.key, s.fallback) == "lle" ? 1 : 0;
+        bool picked = ImGui::RadioButton("Fast (Dolphin's high-level Zelda sound)", &exact, 0);
+        picked |= ImGui::RadioButton("Exact (the sound chip's own program; slower)", &exact, 1);
+        if (picked) {
+            set_env(s.key, exact ? "lle" : "hle");
+            g_dirty = g_restart_pending = true;
+        }
+        restart_note();
         return true;
     }
     if (std::strcmp(s.key, "BLUEWAKE_STAGE_SELECT_TOGGLE") == 0) {
@@ -603,7 +671,10 @@ bool draw_custom(const bw_settings::Setting& s) {
 // asks for, greyed out when the setting it needs is off, its next-launch note
 // and its quiet line. Rows no one here draws are left to the tab itself.
 void draw_setting(const bw_settings::Setting& s) {
-    if (s.control == bw_settings::Control::None || s.label == nullptr)
+    if (s.control == bw_settings::Control::None)
+        return;
+    // A plain control needs its label; a custom one knows what it draws.
+    if (s.label == nullptr && s.control != bw_settings::Control::Custom)
         return;
     if (s.group != nullptr)
         ImGui::SeparatorText(s.group);
@@ -751,52 +822,10 @@ void hd_textures_section() {
 // Mods: HD textures first, then widescreen and Better Wind Waker, as in the
 // Windows Mods tab and the iPhone and iPad Mods menu.
 void mods_tab() {
-    hd_textures_section();
-    ImGui::Spacing();
-    static const char* const kAspects[] = {"Off (4:3, the game's)", "16:10", "16:9", "21:9"};
-    static const char* const kAspectValues[] = {"4:3", "16:10", "16:9", "21:9"};
-    int aspect = 0;
-    for (int i = 0; i < 4; ++i)
-        if (g_aspect == kAspectValues[i])
-            aspect = i;
-    if (bw_menu_combo("Widescreen", &aspect, kAspects, 4)) {
-        g_aspect = kAspectValues[aspect];
-        g_edited.insert("BLUEWAKE_ASPECT");
-        g_dirty = g_restart_pending = true;
-    }
-    restart_note();
-    ImGui::TextDisabled("Widescreen widens the camera and moves the HUD to the edges.");
-    ImGui::Spacing();
-    if (bw_menu_checkbox("Better Wind Waker", &g_betterww)) {
-        g_edited.insert("BLUEWAKE_MODS");
-        g_dirty = g_restart_pending = true;
-    }
-    restart_note();
-    if (g_options.empty()) {
-        ImGui::TextDisabled("Its settings are listed once the game has started.");
-    } else {
-        ImGui::BeginDisabled(!g_betterww);
-        ImGui::Indent();
-        for (size_t i = 0; i < g_options.size(); ++i) {
-            bool on = g_options[i].second;
-            if (bw_menu_checkbox(g_option_titles[i].c_str(), &on)) {
-                g_options[i].second = on;
-                g_edited.insert("BLUEWAKE_OPTIONS");
-                g_dirty = g_restart_pending = true;
-            }
-            if (const char* note = bw_option_note(g_options[i].first.c_str())) {
-                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30.0f);
-                ImGui::TextDisabled("%s", note);
-                ImGui::PopTextWrapPos();
-            }
-        }
-        ImGui::Unindent();
-        ImGui::EndDisabled();
-    }
-
-
+    // The texture pack, widescreen and Better Wind Waker all draw themselves
+    // (draw_custom); the table gives their order.
+    draw_tab(bw_settings::Tab::Mods);
 }
-
 void gameplay_tab() {
     // Every row, its heading and its note come from settings_table.h; the stage
     // select and Jump & Sprint draw themselves (draw_custom).
@@ -1016,16 +1045,9 @@ void open_folder(const std::string& path) {
 // Sound and files, as on Windows: the sound's engine (next launch), and where
 // the saves, settings and logs are.
 void sound_files_tab() {
-    ImGui::SeparatorText("Sound");
-    int exact = env("BLUEWAKE_DSP_MODE", "hle") == "lle" ? 1 : 0;
-    bool picked = ImGui::RadioButton("Fast (Dolphin's high-level Zelda sound)", &exact, 0);
-    picked |= ImGui::RadioButton("Exact (the sound chip's own program; slower)", &exact, 1);
-    if (picked) {
-        set_env("BLUEWAKE_DSP_MODE", exact ? "lle" : "hle");
-        g_dirty = g_restart_pending = true;
-    }
-    restart_note();
+    draw_tab(bw_settings::Tab::SoundFiles);
     ImGui::Spacing();
+    // Not settings: where this build keeps what it writes.
     ImGui::SeparatorText("Your files");
     std::string folder = g_data_dir;
     if (folder.empty() && !g_path.empty())
