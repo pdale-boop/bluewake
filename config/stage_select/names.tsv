@@ -456,7 +456,7 @@
 32	45	Taking Master Sword	Hyroom	0	248	8	0,1,2,10,248	before
 32	46	After Master Sword	kenroom	0	249	10	0,1,10,200,201,249	before
 32	47	Ending	ENDumi	0	0	8	0	after
-33	0	Ending	ENDING	0	0	0
+33	0	Ending (credits, then the New Game+ file)	ENDING	0	0	0
 34	0	Effects test	I_TestR	-1	0	-1	0
 34	1	Sky box test	VrTest	0	0	-1	0
 34	2	Wave test island	A_nami	0	0	-1	0
