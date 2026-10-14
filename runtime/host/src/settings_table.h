@@ -39,7 +39,8 @@ struct Setting {
 
 // clang-format off
 inline constexpr Setting kSettings[] = {
-    {"BLUEWAKE_ASPECT", "aspect", Kind::Choice, "4:3", 0, 0, "Widescreen", Tab::Mods, true, Control::Dropdown, nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"DOL_AURORA_TEXTURE_PACK", "texture_pack", Kind::Text, "", 0, 0, "HD textures", Tab::Mods, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"BLUEWAKE_ASPECT", "aspect", Kind::Choice, "4:3", 0, 0, "Widescreen", Tab::Mods, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_HD_LOOK", "hd_look", Kind::Bool, "0", 0, 0, "Wind Waker HD look   (F2)", Tab::Display, false, Control::Switch, "The HD release's look, rebuilt piece by piece. So far: islands on the horizon from further away, soft shading, sun and cloud shadows and edge light outdoors, torch light, a soft distance and bloom. Off by default.", nullptr, nullptr, nullptr, nullptr},
     // Custom: the button that goes fullscreen now is drawn above the switch.
     {"DOL_AURORA_FULLSCREEN", "fullscreen", Kind::Bool, "0", 0, 0, "Start in fullscreen", Tab::Display, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr},
@@ -49,7 +50,6 @@ inline constexpr Setting kSettings[] = {
     {"DOL_AURORA_SHOW_FPS", "show_fps", Kind::Bool, "0", 0, 0, "Show the frame rate   (F9)", Tab::Display, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"DOL_AURORA_FPS_POSITION", "fps_position", Kind::Choice, "", 0, 0, "FPS position", Tab::Display, false, Control::Dropdown, nullptr, "DOL_AURORA_SHOW_FPS", nullptr, nullptr, nullptr},
     {"DOL_AURORA_FORCE_ANISO", "anisotropy", Kind::Int, "1", 1, 16, "Texture filtering", Tab::Display, false, Control::Dropdown, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_TEXTURE_PACK", "texture_pack", Kind::Text, "", 0, 0, "HD textures", Tab::Mods, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_MODS", "betterww", Kind::Text, "", 0, 0, "Better Wind Waker", Tab::Mods, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_OPTIONS", nullptr, Kind::Text, "", 0, 0, nullptr, Tab::Mods, true, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr}, // Windows: option.NAME
     {"BLUEWAKE_FADE_FRAMES", "fast_transitions", Kind::Int, "", 0, 0, nullptr, Tab::Gameplay, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr},
@@ -91,7 +91,7 @@ inline constexpr Setting kSettings[] = {
     {"BLUEWAKE_PAUSE_UNFOCUSED", "pause_unfocused", Kind::Bool, "0", 0, 0, "Pause while the window is in the background", Tab::Display, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_SHADERS_FIRST", "compile_shaders_first", Kind::Bool, "0", 0, 0, "Compile shaders before playing", Tab::Display, true, Control::Switch, "At start, wait until the shaders from earlier play are ready, so nothing is missing from the picture the first time it is drawn. Otherwise they are made while you play.", nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_SPRINT_CHOICE", "sprint_speed", Kind::Float, "1.5", 1.1f, 2.f, "Sprint speed", Tab::Gameplay, false, Control::None, nullptr, "BLUEWAKE_JUMP_BUTTON", nullptr, "%.2fx", "%.2f"},
-    {"BLUEWAKE_DSP_MODE", "lle_audio", Kind::Choice, "hle", 0, 0, nullptr, Tab::SoundFiles, true, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"BLUEWAKE_DSP_MODE", "lle_audio", Kind::Choice, "hle", 0, 0, nullptr, Tab::SoundFiles, true, Control::Custom, nullptr, nullptr, "Sound", nullptr, nullptr},
 };
 // clang-format on
 
