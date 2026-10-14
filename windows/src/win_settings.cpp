@@ -16,6 +16,7 @@
 // aside, so the menu's clicks and keys do not move Link.
 #include "win_settings.h"
 #include "settings_state.h"
+#include "settings_file.h"
 #include "smooth_rate.h"
 #include "fps_position.h"
 #include "controller_face_swap.h"
@@ -107,6 +108,7 @@ bool g_menu_open;
 bool g_stage_select_question; // the menu shows only the stage select's question
 bool g_toggle_menu, g_toggle_fullscreen;  // from the hotkeys, done in the frame
 bool g_dirty;
+BwSettingsLines g_other;  // the file's lines this build doesn't know, kept as they were
 Uint64 g_dirty_at, g_first_frame_at;
 bool g_pad_applied;
 SDL_JoystickID g_pad_connection = 0;
@@ -120,13 +122,21 @@ const char* const kAnisotropyNames[] = {"The game's own", "2x anisotropic", "4x 
 
 // --- the file ---------------------------------------------------------------
 
-bool parse_bool(const std::string& v) { return v == "1" || v == "true" || v == "on" || v == "yes"; }
+// Load\Textures\GZLE01, the pack's folder when none is chosen.
+std::string default_pack_folder() { return g_data_dir + "Load\\Textures\\GZLE01"; }
+
+// The settings file, in the desktop format (settings_file.h). A file from
+// before it (aspect=, option.NAME=...) is still read; it is copied to
+// settings.ini.before-shared-menu and written again in the new format. If the
+// copy fails it is left as it is, and still read the old way next time.
+void save_file();
 
 void load_file() {
     FILE* f = std::fopen(g_path.c_str(), "r");
     if (f == nullptr)
         return;
-    char line[512];
+    BwSettingsLines lines;
+    char line[4096];
     while (std::fgets(line, sizeof line, f) != nullptr) {
         std::string s = line;
         while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' '))
@@ -134,61 +144,31 @@ void load_file() {
         const size_t eq = s.find('=');
         if (s.empty() || s[0] == '#' || eq == std::string::npos)
             continue;
-        const std::string k = s.substr(0, eq), v = s.substr(eq + 1);
-        Settings& d = g_saved;
-        if (k == "fullscreen") d.fullscreen = parse_bool(v);
-        else if (k == "window") std::sscanf(v.c_str(), "%dx%d", &d.window_w, &d.window_h);
-        else if (k == "window_position") std::sscanf(v.c_str(), "%d,%d", &d.window_x, &d.window_y);
-        else if (k == "render_scale") d.render_scale = std::clamp(std::atoi(v.c_str()), 0, 4);
-        else if (k == "anisotropy") d.anisotropy = std::clamp(std::atoi(v.c_str()), 1, 16);
-        else if (k == "smooth_motion") d.smooth_motion = parse_bool(v);
-        else if (k == "smooth_motion_fps") d.smooth_steps = v == "display" ? -1 : std::atoi(v.c_str()) >= 120 ? 3 : 1;
-        else if (k == "show_fps") d.show_fps = parse_bool(v);
-        else if (k == "fps_position") d.fps_position = bw_fps_position(v.c_str());
-        else if (k == "pause_unfocused") d.pause_unfocused = parse_bool(v);
-        else if (k == "compile_shaders_first") d.shaders_first = parse_bool(v);
-        else if (k == "mouse_camera") d.mouse_camera = parse_bool(v);
-        else if (k == "mouse_sensitivity") d.mouse_sensitivity = std::clamp(std::atof(v.c_str()), 0.1, 10.0);
-        else if (k == "mouse_invert_y") d.mouse_invert_y = parse_bool(v);
-        else if (k == "controller_swap_ab") d.controller_swap_ab = parse_bool(v);
-        else if (k == "button_map") d.button_map = v;
-        else if (k == "mouse_buttons") d.mouse_buttons = v;
-        else if (k == "key_map") d.key_map = v;
-        else if (k == "controller_swap_xy") d.controller_swap_xy = parse_bool(v);
-        else if (k == "controller_swap_lr") d.controller_swap_lr = parse_bool(v);
-        else if (k == "dpad_menus") d.dpad_menus = parse_bool(v);
-        else if (k == "controller_invert_x") d.pad_invert_x = parse_bool(v);
-        else if (k == "controller_invert_y") d.pad_invert_y = parse_bool(v);
-        else if (k == "stick_camera") d.stick_camera = parse_bool(v);
-        else if (k == "stick_camera_speed") d.stick_speed = std::clamp(std::atoi(v.c_str()), 60, 1080);
-        else if (k == "stick_aim_speed") d.stick_aim_speed = std::clamp(std::atoi(v.c_str()), 30, 720);
-        else if (k == "stick_zoom") d.stick_zoom = parse_bool(v);
-        else if (k == "stick_zoom_speed") d.stick_zoom_speed = std::clamp(std::atof(v.c_str()), 0.25, 2.0);
-        else if (k == "aim_invert_y") d.aim_invert_y = parse_bool(v);
-        else if (k == "gyro_aim") d.gyro_aim = parse_bool(v);
-        else if (k == "gyro_aim_speed") d.gyro_aim_speed = std::clamp(std::atof(v.c_str()), 0.25, 4.0);
-        else if (k == "climb") d.climb = parse_bool(v);
-        else if (k == "climb_stamina") d.climb_stamina = std::clamp(std::atoi(v.c_str()), 4, 30);
-        else if (k == "forest_water_keep_trees") d.forest_keep_trees = parse_bool(v);
-        else if (k == "forest_water_30_minutes") d.forest_30_minutes = parse_bool(v);
-        else if (k == "hd_look") d.hd_look = parse_bool(v);
-        else if (k == "haptics") d.haptics = v == "off" ? 0 : v == "classic" ? 1 : 2;
-        else if (k == "haptics_strength") d.haptics_strength = std::clamp(std::atoi(v.c_str()), 0, 100);
-        else if (k == "haptics_triggers") d.haptics_triggers = parse_bool(v);
-        else if (k == "aspect") d.aspect = (v == "16:9" || v == "16:10" || v == "21:9") ? v : "4:3";
-        else if (k == "keep_aspect") d.keep_aspect = parse_bool(v);
-        else if (k == "betterww") d.betterww = parse_bool(v);
-        else if (k.rfind("option.", 0) == 0) d.options[k.substr(7)] = parse_bool(v);
-        else if (k == "hd_textures") d.hd_textures = parse_bool(v);
-        else if (k == "texture_pack") d.texture_pack = v;
-        else if (k == "lle_audio") d.lle_audio = parse_bool(v);
-        else if (k == "movement_extras") d.movement_extras = parse_bool(v);
-        else if (k == "sprint_speed") d.sprint_speed = std::clamp(std::atof(v.c_str()), 1.1, 2.0);
-        else if (k == "fast_transitions") d.fast_transitions = parse_bool(v);
-        else if (k == "quick_doors") d.quick_doors = parse_bool(v);
-        else if (k == "stage_select") d.stage_select = parse_bool(v);
+        lines.emplace_back(s.substr(0, eq), s.substr(eq + 1));
     }
     std::fclose(f);
+    bool old_format = false;
+    for (const auto& [k, v] : lines)
+        if (k.rfind("BLUEWAKE_", 0) != 0 && k.rfind("DOL_", 0) != 0 && bw_settings_read_old(k, v, g_saved))
+            old_format = true;
+    if (!old_format) {
+        bw_settings_read_new(lines, default_pack_folder(), g_saved, g_other);
+        return;
+    }
+    // Lines the old reader didn't know (none, before the file was shared) stay.
+    Settings ignored;
+    for (const auto& [k, v] : lines)
+        if (!bw_settings_read_old(k, v, ignored))
+            g_other.emplace_back(k, v);
+    const std::string backup = g_path + ".before-shared-menu";
+    if (bw_atomic_copy_if_missing(g_path.c_str(), backup.c_str())) {
+        std::fprintf(stderr, "[settings] the settings file is in the shared format now; the old one is %s\n",
+                     backup.c_str());
+        save_file();
+    } else {
+        std::fprintf(stderr, "[settings] kept the old settings file as it was (could not copy it to %s)\n",
+                     backup.c_str());
+    }
 }
 
 void save_file() {
@@ -196,51 +176,13 @@ void save_file() {
     char* pending = bw_atomic_path(g_path.c_str());
     FILE* f = pending != nullptr ? std::fopen(pending, "w") : nullptr;
     if (f == nullptr) { free(pending); return; }
-    const Settings& d = g_saved;
-    std::fprintf(f, "# BlueWake settings (the in-game menu, F1, writes this file)\n");
-    std::fprintf(f, "fullscreen=%d\n", d.fullscreen);
-    if (d.window_w > 0 && d.window_h > 0)
-        std::fprintf(f, "window=%dx%d\n", d.window_w, d.window_h);
-    if (d.window_x != INT_MIN && d.window_y != INT_MIN)
-        std::fprintf(f, "window_position=%d,%d\n", d.window_x, d.window_y);
-    std::fprintf(f, "render_scale=%d\nanisotropy=%d\nsmooth_motion=%d\nshow_fps=%d\npause_unfocused=%d\n",
-                 d.render_scale, d.anisotropy, d.smooth_motion, d.show_fps, d.pause_unfocused);
-    std::fprintf(f, "fps_position=%s\n", kBwFpsPositionValues[d.fps_position]);
-    std::fprintf(f, "compile_shaders_first=%d\n", d.shaders_first);
-    std::fprintf(f, "smooth_motion_fps=%s\n", d.smooth_steps == -1 ? "display" : d.smooth_steps >= 3 ? "120" : "60");
-    std::fprintf(f, "mouse_camera=%d\nmouse_sensitivity=%.2f\nmouse_invert_y=%d\n", d.mouse_camera,
-                 d.mouse_sensitivity, d.mouse_invert_y);
-    std::fprintf(f, "controller_swap_ab=%d\ncontroller_swap_xy=%d\n", d.controller_swap_ab, d.controller_swap_xy);
-    std::fprintf(f, "controller_swap_lr=%d\n", d.controller_swap_lr);
-    std::fprintf(f, "dpad_menus=%d\n", d.dpad_menus);
-    if (!d.button_map.empty())
-        std::fprintf(f, "button_map=%s\n", d.button_map.c_str());
-    if (!d.mouse_buttons.empty())
-        std::fprintf(f, "mouse_buttons=%s\n", d.mouse_buttons.c_str());
-    if (!d.key_map.empty())
-        std::fprintf(f, "key_map=%s\n", d.key_map.c_str());
-    std::fprintf(f, "controller_invert_x=%d\ncontroller_invert_y=%d\n", d.pad_invert_x, d.pad_invert_y);
-    std::fprintf(f, "stick_camera=%d\nstick_camera_speed=%d\nstick_aim_speed=%d\n", d.stick_camera, d.stick_speed,
-                 d.stick_aim_speed);
-    std::fprintf(f, "stick_zoom=%d\nstick_zoom_speed=%.3f\n", d.stick_zoom, d.stick_zoom_speed);
-    std::fprintf(f, "aim_invert_y=%d\n", d.aim_invert_y);
-    std::fprintf(f, "gyro_aim=%d\ngyro_aim_speed=%.2f\n", d.gyro_aim, d.gyro_aim_speed);
-    std::fprintf(f, "climb=%d\nclimb_stamina=%d\n", d.climb, d.climb_stamina);
-    std::fprintf(f, "forest_water_keep_trees=%d\nforest_water_30_minutes=%d\n", d.forest_keep_trees,
-                 d.forest_30_minutes);
-    std::fprintf(f, "hd_look=%d\n", d.hd_look);
-    if (!d.texture_pack.empty())
-        std::fprintf(f, "texture_pack=%s\n", d.texture_pack.c_str());
-    std::fprintf(f, "haptics=%s\nhaptics_strength=%d\nhaptics_triggers=%d\n",
-                 d.haptics == 0 ? "off" : d.haptics == 1 ? "classic" : "enhanced",
-                 d.haptics_strength, d.haptics_triggers);
-    std::fprintf(f, "aspect=%s\nkeep_aspect=%d\nbetterww=%d\nhd_textures=%d\nlle_audio=%d\n", d.aspect.c_str(),
-                 d.keep_aspect, d.betterww, d.hd_textures, d.lle_audio);
-    for (const auto& [name, on] : d.options)
-        std::fprintf(f, "option.%s=%d\n", name.c_str(), on);
-    std::fprintf(f, "movement_extras=%d\nsprint_speed=%.2f\nfast_transitions=%d\nquick_doors=%d\n",
-                 d.movement_extras, d.sprint_speed, d.fast_transitions, d.quick_doors);
-    std::fprintf(f, "stage_select=%d\n", d.stage_select);
+    std::fprintf(f, "# BlueWake settings, written by the options menu (F1 or Esc in the game).\n"
+                    "# KEY=VALUE, the host's settings; a launch option or a variable set before\n"
+                    "# BlueWake starts wins for that session.\n");
+    for (const auto& [k, v] : bw_settings_write_new(g_saved, default_pack_folder()))
+        std::fprintf(f, "%s=%s\n", k.c_str(), v.c_str());
+    for (const auto& [k, v] : g_other)
+        std::fprintf(f, "%s=%s\n", k.c_str(), v.c_str());
     const bool ok = bw_atomic_finish_dirty(f, pending, g_path.c_str(), &g_dirty);
     free(pending);
     if (!ok) std::fprintf(stderr, "[settings] save failed; previous file kept, retry pending\n");
@@ -289,7 +231,7 @@ void default_window(double ratio, int* w, int* h) {
     *h = height;
 }
 
-std::string texture_folder() { return g_data_dir + "Load\\Textures\\GZLE01"; }
+std::string texture_folder() { return default_pack_folder(); }
 // The folder the pack is loaded from: the one chosen, else texture_folder().
 std::string texture_pack_folder(const Settings& d) {
     return d.texture_pack.empty() ? texture_folder() : d.texture_pack;
