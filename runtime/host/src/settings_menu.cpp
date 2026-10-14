@@ -500,6 +500,19 @@ void apply_now(const char* key, const std::string& value) {
         aurora_set_forced_anisotropy(static_cast<unsigned>(std::atoi(value.c_str())));
     else if (std::strcmp(key, "BLUEWAKE_PAUSE_UNFOCUSED") == 0)
         aurora_set_pause_on_focus_lost(value != "0");
+    else if (std::strcmp(key, "BLUEWAKE_FOREST_WATER_KEEP_TREES") == 0 ||
+             std::strcmp(key, "BLUEWAKE_FOREST_WATER_30_MINUTES") == 0)
+        bluewake_forest_water_reload();
+    else if (std::strcmp(key, "BLUEWAKE_QUICK_DOORS") == 0)
+        bluewake_quick_doors_reload();
+    else if (std::strcmp(key, "BLUEWAKE_FAST_FORWARD") == 0) {
+        // One switch for the player; the frames it skips move with it, and both
+        // keep working on their own for testing.
+        set_env("BLUEWAKE_FADE_FRAMES", value != "0" ? "6" : "0");
+        bluewake_fast_load_reload();
+    }
+    else if (std::strcmp(key, "BLUEWAKE_CLIMB") == 0 || std::strcmp(key, "BLUEWAKE_CLIMB_STAMINA") == 0)
+        bluewake_climb_reload();
 }
 
 // A Custom row draws itself: the switch that needs a button beside it, the two
@@ -530,6 +543,45 @@ bool draw_custom(const bw_settings::Setting& s) {
             ImGui::TextDisabled("%s", s.note);
         return true;
     }
+    if (std::strcmp(s.key, "BLUEWAKE_STAGE_SELECT_TOGGLE") == 0) {
+        bool stage_select;
+        if (setting_checkbox(s.key, &stage_select))
+            g_dirty = g_restart_pending = true;
+        restart_note();
+        if (s.note != nullptr)
+            ImGui::TextWrapped("%s", s.note);
+        bw_stage_select_save_warning();
+        if (bw_stage_select_button())
+            close_menu();
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_JUMP_BUTTON") == 0) {
+        // Jump & Sprint, one switch as on Windows and the iPad, with the
+        // sprint's speed under it. The chosen speed is kept apart
+        // (BLUEWAKE_SPRINT_CHOICE) so turning it off (BLUEWAKE_SPRINT_SPEED 1)
+        // and on again keeps it.
+        const float current = static_cast<float>(std::atof(env("BLUEWAKE_SPRINT_SPEED", "1").c_str()));
+        bool extras = env_on(s.key, false) || current > 1.01f;
+        float choice = static_cast<float>(std::atof(env("BLUEWAKE_SPRINT_CHOICE", "0").c_str()));
+        if (choice < 1.1f || choice > 2.f)
+            choice = current > 1.01f && current <= 2.f ? std::max(current, 1.1f) : 1.5f;
+        const auto apply_sprint = [&]() {
+            char text[16];
+            std::snprintf(text, sizeof text, "%.2f", choice);
+            set_env("BLUEWAKE_SPRINT_CHOICE", text);
+            set_env("BLUEWAKE_SPRINT_SPEED", extras ? text : "1");
+            set_env(s.key, extras ? "1" : "0");
+            bluewake_jump_button_reload();
+            bluewake_sprint_reload();
+        };
+        if (bw_menu_checkbox(s.label, &extras))
+            apply_sprint();
+        ImGui::BeginDisabled(!extras);
+        if (slider(setting("BLUEWAKE_SPRINT_CHOICE").label, &choice, 1.1f, 2.f, "%.2fx"))
+            apply_sprint();
+        ImGui::EndDisabled();
+        return true;
+    }
     if (std::strcmp(s.key, "DOL_AURORA_ASPECT_FIT") == 0) {
         // When the window isn't the picture's shape: black bars, or the picture
         // stretched to fill it. A widened picture (16:10, 16:9, 21:9) always
@@ -553,6 +605,8 @@ bool draw_custom(const bw_settings::Setting& s) {
 void draw_setting(const bw_settings::Setting& s) {
     if (s.control == bw_settings::Control::None || s.label == nullptr)
         return;
+    if (s.group != nullptr)
+        ImGui::SeparatorText(s.group);
     if (s.control == bw_settings::Control::Custom) {
         draw_custom(s);
         return;
@@ -569,7 +623,8 @@ void draw_setting(const bw_settings::Setting& s) {
         break;
     }
     case bw_settings::Control::Slider: {
-        changed = setting_slider(s.key, "%.2f", "%.3f");
+        changed = setting_slider(s.key, s.shown != nullptr ? s.shown : "%.2f",
+                                 s.stored != nullptr ? s.stored : "%.3f");
         value = env(s.key, s.fallback);
         break;
     }
@@ -743,85 +798,9 @@ void mods_tab() {
 }
 
 void gameplay_tab() {
-    bool stage_select;
-    if (setting_checkbox("BLUEWAKE_STAGE_SELECT_TOGGLE", &stage_select)) {
-        g_dirty = g_restart_pending = true;
-    }
-    restart_note();
-    ImGui::TextWrapped("F7 during play opens the menu the developers used to jump to any room, from your own "
-                       "file; F7 in the menu goes back. On a controller, Back (View on Xbox, Share or Create on "
-                       "PlayStation) opens these settings and the button below does the same. Off by default.");
-    bw_stage_select_save_warning();
-    if (bw_stage_select_button())
-        close_menu();
-
-    ImGui::SeparatorText("Forest Water Challenge");
-    bool keep_trees;
-    if (setting_checkbox("BLUEWAKE_FOREST_WATER_KEEP_TREES", &keep_trees)) {
-        bluewake_forest_water_reload();
-    }
-    ImGui::TextWrapped("Forest Water still expires. Refill and continue with the remaining trees.");
-    bool thirty_minutes;
-    if (setting_checkbox("BLUEWAKE_FOREST_WATER_30_MINUTES", &thirty_minutes)) {
-        bluewake_forest_water_reload();
-    }
-    ImGui::TextWrapped("Applies the next time you collect Forest Water. Both options are off by default.");
-
-    ImGui::SeparatorText("Doors and exits");
-    // One switch, as on Windows and the iPad: short fades and no waiting in
-    // the black, or the game's own (BLUEWAKE_FADE_FRAMES 6 or 0, and
-    // BLUEWAKE_FAST_FORWARD, which keep working on their own for testing).
-    bool fast;
-    if (setting_checkbox("BLUEWAKE_FAST_FORWARD", &fast)) {
-        set_env("BLUEWAKE_FADE_FRAMES", fast ? "6" : "0");
-        bluewake_fast_load_reload();
-    }
-    bool doors;
-    if (setting_checkbox("BLUEWAKE_QUICK_DOORS", &doors)) {
-        bluewake_quick_doors_reload();
-    }
-
-    ImGui::SeparatorText("Climbing");
-    bool climb;
-    if (setting_checkbox("BLUEWAKE_CLIMB", &climb)) {
-        bluewake_climb_reload();
-    }
-    ImGui::BeginDisabled(!climb);
-    float stamina = static_cast<float>(std::atof(env("BLUEWAKE_CLIMB_STAMINA", "12").c_str()));
-    if (stamina < 1.f)
-        stamina = 12.f;
-    if (slider("Climbing stamina", &stamina, 4.f, 30.f, "%.0f seconds")) {
-        char text[16];
-        std::snprintf(text, sizeof text, "%.0f", stamina);
-        set_env("BLUEWAKE_CLIMB_STAMINA", text);
-        bluewake_climb_reload();
-    }
-    ImGui::EndDisabled();
-
-    ImGui::SeparatorText("Jump & Sprint");
-    // Jump & Sprint, one switch as on Windows and the iPad, with the sprint's
-    // speed under it. The chosen speed is kept apart (BLUEWAKE_SPRINT_CHOICE) so
-    // turning it off (BLUEWAKE_SPRINT_SPEED 1) and on again keeps it.
-    const float current = static_cast<float>(std::atof(env("BLUEWAKE_SPRINT_SPEED", "1").c_str()));
-    bool extras = env_on("BLUEWAKE_JUMP_BUTTON", false) || current > 1.01f;
-    float choice = static_cast<float>(std::atof(env("BLUEWAKE_SPRINT_CHOICE", "0").c_str()));
-    if (choice < 1.1f || choice > 2.f)
-        choice = current > 1.01f && current <= 2.f ? std::max(current, 1.1f) : 1.5f;
-    const auto apply_sprint = [&]() {
-        char text[16];
-        std::snprintf(text, sizeof text, "%.2f", choice);
-        set_env("BLUEWAKE_SPRINT_CHOICE", text);
-        set_env("BLUEWAKE_SPRINT_SPEED", extras ? text : "1");
-        set_env("BLUEWAKE_JUMP_BUTTON", extras ? "1" : "0");
-        bluewake_jump_button_reload();
-        bluewake_sprint_reload();
-    };
-    if (bw_menu_checkbox("Jump & Sprint (Space or the left bumper jumps; Shift or the left stick click sprints)", &extras))
-        apply_sprint();
-    ImGui::BeginDisabled(!extras);
-    if (slider("Sprint speed", &choice, 1.1f, 2.f, "%.2fx"))
-        apply_sprint();
-    ImGui::EndDisabled();
+    // Every row, its heading and its note come from settings_table.h; the stage
+    // select and Jump & Sprint draw themselves (draw_custom).
+    draw_tab(bw_settings::Tab::Gameplay);
 }
 
 void apply_controller_swaps() {
