@@ -50,6 +50,7 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <set>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
@@ -70,6 +71,11 @@ namespace {
 std::string g_path;                          // the settings file ("" when none)
 std::string g_data_dir;                      // saves and logs (bluewake_settings_set_data_dir)
 std::map<std::string, std::string> g_other;  // its other keys, kept as they were
+// Settings already set when BlueWake started (a launch option or a variable):
+// they win for this session, and the file keeps its own value for them (here)
+// unless the player changes them in the menu (g_edited).
+std::map<std::string, std::string> g_launch;
+std::set<std::string> g_edited;
 bool g_open = false;
 bool g_stage_select_question = false; // the menu shows only the stage select's question
 bool g_dirty = false;
@@ -108,6 +114,7 @@ bool env_on(const char* key, bool fallback) {
 
 void set_env(const char* key, const std::string& value) {
     setenv(key, value.c_str(), 1);
+    g_edited.insert(key);
     g_dirty = true;
 }
 
@@ -173,7 +180,8 @@ void save() {
         return;
     }
     std::fputs("# BlueWake settings, written by the options menu (Esc or F1 in the game).\n"
-               "# KEY=VALUE, the host's environment settings; these win over the launch command's.\n",
+               "# KEY=VALUE, the host's settings; a launch option or a variable set before\n"
+               "# BlueWake starts wins for that session.\n",
                file);
     for (const bw_settings::Setting& setting : bw_settings::kSettings) {
         const char* key = setting.key;
@@ -188,6 +196,10 @@ void save() {
             value = g_texture_pack;
         else
             value = env(key);
+        // A launch choice the player didn't change here: the file's own value.
+        const auto launched = g_launch.find(key);
+        if (launched != g_launch.end() && g_edited.count(key) == 0)
+            value = launched->second;
         std::fprintf(file, "%s=%s\n", key, value.c_str());
     }
     for (const auto& [key, value] : g_other)
@@ -553,6 +565,7 @@ std::string importer_pack_folder() {
 
 
 void set_texture_pack(const std::string& folder) {
+    g_edited.insert("DOL_AURORA_TEXTURE_PACK");
     std::snprintf(g_texture_pack, sizeof g_texture_pack, "%s", folder.c_str());
     g_dirty = g_restart_pending = true;
 }
@@ -618,13 +631,16 @@ void mods_tab() {
             aspect = i;
     if (bw_menu_combo("Widescreen", &aspect, kAspects, 4)) {
         g_aspect = kAspectValues[aspect];
+        g_edited.insert("BLUEWAKE_ASPECT");
         g_dirty = g_restart_pending = true;
     }
     restart_note();
     ImGui::TextDisabled("Widescreen widens the camera and moves the HUD to the edges.");
     ImGui::Spacing();
-    if (bw_menu_checkbox("Better Wind Waker", &g_betterww))
+    if (bw_menu_checkbox("Better Wind Waker", &g_betterww)) {
+        g_edited.insert("BLUEWAKE_MODS");
         g_dirty = g_restart_pending = true;
+    }
     restart_note();
     if (g_options.empty()) {
         ImGui::TextDisabled("Its settings are listed once the game has started.");
@@ -635,6 +651,7 @@ void mods_tab() {
             bool on = g_options[i].second;
             if (bw_menu_checkbox(g_option_titles[i].c_str(), &on)) {
                 g_options[i].second = on;
+                g_edited.insert("BLUEWAKE_OPTIONS");
                 g_dirty = g_restart_pending = true;
             }
             if (const char* note = bw_option_note(g_options[i].first.c_str())) {
@@ -1311,6 +1328,7 @@ void apply_safe_mode() {
         // Per-effect overrides are otherwise kept verbatim as unmanaged keys.
         if (backed_up)
             g_other.erase(pair[0]);
+        g_edited.insert(pair[0]);  // saved as safe, even over a launch choice
     }
     std::fprintf(stderr, "[safe-mode] Fast sound, 4:3, a window, no HD look, mods or options%s\n",
                  backed_up ? "; the earlier settings were copied beside settings.ini" : "");
@@ -1323,6 +1341,15 @@ void apply_safe_mode() {
 } // namespace
 
 extern "C" void bluewake_settings_load(void) {
+    // What was set before the file is read is the player's for this session
+    // (linux_entry.c's options, or variables set before starting): it wins over
+    // the file, as linux_entry.c's usage and Windows say, and isn't saved.
+    for (const bw_settings::Setting& setting : bw_settings::kSettings)
+        if (std::getenv(setting.key) != nullptr)
+            g_launch[setting.key] = "";
+    // Fast sound unless the file or the launch says otherwise (a default, not a
+    // launch choice: set after the launch's are noted, as Jump and Sprint below).
+    setenv("BLUEWAKE_DSP_MODE", "hle", 0);
     const char* chosen = std::getenv("BLUEWAKE_SETTINGS");
     // No settings file (BLUEWAKE_SETTINGS=none, or no home folder): safe mode
     // still applies, to this session only.
@@ -1364,13 +1391,23 @@ extern "C" void bluewake_settings_load(void) {
             continue;
         const std::string key = trim(text.substr(0, equals));
         const std::string value = trim(text.substr(equals + 1));
-        setenv(key.c_str(), value.c_str(), 1);
+        const auto launched = g_launch.find(key);
+        if (launched != g_launch.end())
+            launched->second = value;
+        else if (managed(key) || std::getenv(key.c_str()) == nullptr)
+            setenv(key.c_str(), value.c_str(), 1);
         if (!managed(key))
             g_other[key] = value;
         ++count;
     }
     std::fclose(file);
     std::fprintf(stderr, "[settings] %d settings from %s\n", count, g_path.c_str());
+    if (!g_launch.empty()) {
+        std::string names;
+        for (const auto& [key, value] : g_launch)
+            names += (names.empty() ? "" : ", ") + key;
+        std::fprintf(stderr, "[settings] for this session, as launched: %s\n", names.c_str());
+    }
     apply_safe_mode();
 }
 
