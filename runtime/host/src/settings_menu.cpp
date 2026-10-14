@@ -456,91 +456,166 @@ void reset_window() {
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 }
 
-void display_tab() {
-    bool hd_look;
-    if (setting_checkbox("BLUEWAKE_HD_LOOK", &hd_look)) {
+// What a Dropdown setting offers: the texts shown, and the values stored.
+// Kept here, not in settings_table.h, because some come from Aurora's headers.
+struct Choices {
+    const char* const* shown;
+    const char* const* stored;
+    int count;
+};
+
+const char* const kScaleShown[] = {"The window's pixels", "1x (480 lines)", "2x (960)", "3x (1440)", "4x (1920)"};
+const char* const kScaleStored[] = {"0", "1", "2", "3", "4"};
+const char* const kAnisoShown[] = {"Off (the game's)", "2x", "4x", "8x", "16x"};
+const char* const kAnisoStored[] = {"1", "2", "4", "8", "16"};
+
+bool choices_for(const char* key, Choices* out) {
+    if (std::strcmp(key, "DOL_AURORA_RENDER_SCALE") == 0) {
+        *out = {kScaleShown, kScaleStored, 5};
+        return true;
+    }
+    if (std::strcmp(key, "DOL_AURORA_FORCE_ANISO") == 0) {
+        *out = {kAnisoShown, kAnisoStored, 5};
+        return true;
+    }
+    if (std::strcmp(key, "DOL_AURORA_FPS_POSITION") == 0) {
+        *out = {kBwFpsPositionNames, kBwFpsPositionValues, BW_FPS_POSITIONS};
+        return true;
+    }
+    return false;
+}
+
+// Applied the moment a setting changes; settings that only take effect at the
+// next launch have no entry here (the table's next_launch draws their note).
+void apply_now(const char* key, const std::string& value) {
+    if (std::strcmp(key, "BLUEWAKE_HD_LOOK") == 0)
         bluewake_hd_look_reload();
-        g_dirty = true;
-    }
-    ImGui::TextWrapped("The HD release's look, rebuilt piece by piece. So far: islands on the horizon from "
-                       "further away, soft shading, sun and cloud shadows and edge light outdoors, torch light, a soft distance "
-                       "and bloom. Off by default.");
+    else if (std::strcmp(key, "DOL_AURORA_SHOW_FPS") == 0)
+        set_show_fps(value != "0");
+    else if (std::strcmp(key, "DOL_AURORA_FPS_POSITION") == 0)
+        aurora_set_fps_overlay_position(static_cast<AuroraFpsOverlayPosition>(bw_fps_position(value.c_str())));
+    else if (std::strcmp(key, "DOL_AURORA_RENDER_SCALE") == 0)
+        aurora_set_frame_buffer_scale(static_cast<float>(std::atoi(value.c_str())));
+    else if (std::strcmp(key, "DOL_AURORA_FORCE_ANISO") == 0)
+        aurora_set_forced_anisotropy(static_cast<unsigned>(std::atoi(value.c_str())));
+    else if (std::strcmp(key, "BLUEWAKE_PAUSE_UNFOCUSED") == 0)
+        aurora_set_pause_on_focus_lost(value != "0");
+}
 
-    // An action for this session, not a setting: a button.
-    const bool fullscreen = is_fullscreen();
-    if (ImGui::Button(fullscreen ? "Leave fullscreen   (F11 or Alt+Enter)" : "Fullscreen   (F11 or Alt+Enter)"))
-        set_fullscreen(!fullscreen);
-    bool start_fullscreen;
-    if (setting_checkbox("DOL_AURORA_FULLSCREEN", &start_fullscreen)) {
-        g_dirty = true;
-    }
-    restart_note();
-
-    static const char* const kScales[] = {"The window's pixels", "1x (480 lines)", "2x (960)", "3x (1440)",
-                                          "4x (1920)"};
-    int scale = std::atoi(env("DOL_AURORA_RENDER_SCALE", "0").c_str());
-    scale = scale < 0 ? 0 : scale > 4 ? 4 : scale;
-    if (bw_menu_combo("Render resolution", &scale, kScales, 5)) {
-        set_env("DOL_AURORA_RENDER_SCALE", std::to_string(scale));
-        aurora_set_frame_buffer_scale(static_cast<float>(scale));
-    }
-
-    static const char* const kSmooth[] = {"Off (30, the game's)", "60 frames a second",
-        "120 frames a second (120 Hz displays)", "Match the display (up to 240)"};
-    const int requested = bw_smooth_requested(env("DOL_AURORA_FRAME_INTERP_STEPS", "1").c_str());
-    int smooth = !env_on("DOL_AURORA_FRAME_INTERP", false) ? 0 : requested == -1 ? 3 : requested >= 3 ? 2 : 1;
-    if (bw_menu_combo("Smooth Motion (experimental)   (F10)", &smooth, kSmooth, 4))
-        set_smooth_motion(smooth == 0 ? nullptr : smooth == 3 ? "display" : smooth == 2 ? "3" : "1");
-    ImGui::TextDisabled("The game runs at 30; display changes and overloads can lower the presentation rate.");
-
-    bool fps;
-    if (setting_checkbox("DOL_AURORA_SHOW_FPS", &fps))
-        set_show_fps(fps);
-    ImGui::BeginDisabled(!fps);
-    int position = bw_fps_position(env("DOL_AURORA_FPS_POSITION").c_str());
-    if (bw_menu_combo("FPS position", &position, kBwFpsPositionNames, BW_FPS_POSITIONS)) {
-        set_env("DOL_AURORA_FPS_POSITION", kBwFpsPositionValues[position]);
-        aurora_set_fps_overlay_position(static_cast<AuroraFpsOverlayPosition>(position));
-    }
-    ImGui::EndDisabled();
-
-    static const char* const kAniso[] = {"Off (the game's)", "2x", "4x", "8x", "16x"};
-    static const unsigned kAnisoValues[] = {1, 2, 4, 8, 16};
-    const unsigned samples = static_cast<unsigned>(std::atoi(env("DOL_AURORA_FORCE_ANISO", "1").c_str()));
-    int aniso = 0;
-    for (int i = 0; i < 5; ++i)
-        if (samples == kAnisoValues[i])
-            aniso = i;
-    if (bw_menu_combo("Texture filtering", &aniso, kAniso, 5)) {
-        set_env("DOL_AURORA_FORCE_ANISO", std::to_string(kAnisoValues[aniso]));
-        aurora_set_forced_anisotropy(kAnisoValues[aniso]);
-    }
-
-    // When the window isn't the picture's shape: black bars, or the picture
-    // stretched to fill it. A widened picture (16:10, 16:9, 21:9) always keeps
-    // its shape, so the choice is only for 4:3.
-    if (g_aspect == "4:3") {
-        bool keep_shape;
-        if (setting_checkbox("DOL_AURORA_ASPECT_FIT", &keep_shape)) {
-            g_dirty = g_restart_pending = true;
-        }
+// A Custom row draws itself: the switch that needs a button beside it, the two
+// settings that are one dropdown, the one only 4:3 shows. Rows this doesn't
+// know are left to their tab, which still draws them by hand.
+bool draw_custom(const bw_settings::Setting& s) {
+    if (std::strcmp(s.key, "DOL_AURORA_FULLSCREEN") == 0) {
+        // An action for this session, not a setting: a button above the switch.
+        const bool fullscreen = is_fullscreen();
+        if (ImGui::Button(fullscreen ? "Leave fullscreen   (F11 or Alt+Enter)" : "Fullscreen   (F11 or Alt+Enter)"))
+            set_fullscreen(!fullscreen);
+        bool start_fullscreen;
+        if (setting_checkbox(s.key, &start_fullscreen))
+            g_dirty = true;
         restart_note();
-    } else {
-        ImGui::TextDisabled("Widened pictures always keep their shape (black bars rather than stretching).");
+        return true;
     }
+    if (std::strcmp(s.key, "DOL_AURORA_FRAME_INTERP") == 0) {
+        // The switch and its rate are one dropdown.
+        static const char* const kSmooth[] = {"Off (30, the game's)", "60 frames a second",
+                                              "120 frames a second (120 Hz displays)",
+                                              "Match the display (up to 240)"};
+        const int requested = bw_smooth_requested(env("DOL_AURORA_FRAME_INTERP_STEPS", "1").c_str());
+        int smooth = !env_on(s.key, false) ? 0 : requested == -1 ? 3 : requested >= 3 ? 2 : 1;
+        if (bw_menu_combo(s.label, &smooth, kSmooth, 4))
+            set_smooth_motion(smooth == 0 ? nullptr : smooth == 3 ? "display" : smooth == 2 ? "3" : "1");
+        if (s.note != nullptr)
+            ImGui::TextDisabled("%s", s.note);
+        return true;
+    }
+    if (std::strcmp(s.key, "DOL_AURORA_ASPECT_FIT") == 0) {
+        // When the window isn't the picture's shape: black bars, or the picture
+        // stretched to fill it. A widened picture (16:10, 16:9, 21:9) always
+        // keeps its shape, so the choice is only for 4:3.
+        if (g_aspect != "4:3") {
+            ImGui::TextDisabled("Widened pictures always keep their shape (black bars rather than stretching).");
+            return true;
+        }
+        bool keep_shape;
+        if (setting_checkbox(s.key, &keep_shape))
+            g_dirty = g_restart_pending = true;
+        restart_note();
+        return true;
+    }
+    return false;
+}
 
-    bool pause;
-    if (setting_checkbox("BLUEWAKE_PAUSE_UNFOCUSED", &pause)) {
-        aurora_set_pause_on_focus_lost(pause);
+// One row of a tab, from its line in settings_table.h: the control the table
+// asks for, greyed out when the setting it needs is off, its next-launch note
+// and its quiet line. Rows no one here draws are left to the tab itself.
+void draw_setting(const bw_settings::Setting& s) {
+    if (s.control == bw_settings::Control::None || s.label == nullptr)
+        return;
+    if (s.control == bw_settings::Control::Custom) {
+        draw_custom(s);
+        return;
     }
+    const bool enabled = s.needs == nullptr || env_on(s.needs, bw_settings::default_on(setting(s.needs)));
+    ImGui::BeginDisabled(!enabled);
+    bool changed = false;
+    std::string value;
+    switch (s.control) {
+    case bw_settings::Control::Switch: {
+        bool on = false;
+        changed = setting_checkbox(s.key, &on);
+        value = on ? "1" : "0";
+        break;
+    }
+    case bw_settings::Control::Slider: {
+        changed = setting_slider(s.key, "%.2f", "%.3f");
+        value = env(s.key, s.fallback);
+        break;
+    }
+    case bw_settings::Control::Dropdown: {
+        Choices choices{};
+        if (!choices_for(s.key, &choices))
+            break;
+        const std::string current = env(s.key, s.fallback);
+        int index = 0;
+        for (int i = 0; i < choices.count; ++i)
+            if (current == choices.stored[i])
+                index = i;
+        if (bw_menu_combo(s.label, &index, choices.shown, choices.count)) {
+            value = choices.stored[index];
+            set_env(s.key, value);
+            changed = true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    if (s.next_launch)
+        restart_note();
+    if (s.note != nullptr)
+        ImGui::TextDisabled("%s", s.note);
+    ImGui::EndDisabled();
+    if (!changed)
+        return;
+    apply_now(s.key, value);
+    g_dirty = true;
+    if (s.next_launch)
+        g_restart_pending = true;
+}
 
-    bool shaders_first;
-    if (setting_checkbox("BLUEWAKE_SHADERS_FIRST", &shaders_first)) {
-        g_dirty = g_restart_pending = true;
-    }
-    restart_note();
-    ImGui::TextDisabled("At start, wait until the shaders from earlier play are ready, so nothing is missing from "
-                        "the picture the first time it is drawn. Otherwise they are made while you play.");
+// Every plain row of one tab, in the table's order.
+void draw_tab(bw_settings::Tab tab) {
+    for (const bw_settings::Setting& s : bw_settings::kSettings)
+        if (s.tab == tab)
+            draw_setting(s);
+}
+
+void display_tab() {
+    // Every setting here is a row in settings_table.h, drawn in the table's
+    // order; only this button, which is an action and not a setting, is left.
+    draw_tab(bw_settings::Tab::Display);
 
     if (ImGui::Button("Reset the window"))
         reset_window();
