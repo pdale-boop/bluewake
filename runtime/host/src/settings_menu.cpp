@@ -6,6 +6,7 @@
 #include "controller_face_swap.h"
 #include "atomic_file.h"
 #include "launch_marker.h"
+#include "settings_table.h"
 
 // The host's modules are C.
 extern "C" {
@@ -63,30 +64,8 @@ void aurora_set_forced_anisotropy(unsigned samples);
 
 namespace {
 
-// The settings the menu writes, in the file's order. The rest of the file (keys
-// the menu does not show) is kept as it was.
-const char* const kKeys[] = {
-    "BLUEWAKE_ASPECT",          "DOL_AURORA_FULLSCREEN",    "DOL_AURORA_RENDER_SCALE",
-    "DOL_AURORA_FRAME_INTERP",  "DOL_AURORA_FRAME_INTERP_STEPS", "DOL_AURORA_SHOW_FPS", "DOL_AURORA_FPS_POSITION",
-    "DOL_AURORA_FORCE_ANISO",
-    "DOL_AURORA_TEXTURE_PACK",  "BLUEWAKE_MODS",            "BLUEWAKE_OPTIONS",
-    "BLUEWAKE_FADE_FRAMES",     "BLUEWAKE_FAST_FORWARD",    "BLUEWAKE_QUICK_DOORS",
-    "BLUEWAKE_JUMP_BUTTON", "BLUEWAKE_PAD_SWAP_AB", "BLUEWAKE_PAD_SWAP_XY", "BLUEWAKE_PAD_SWAP_LR",
-    "BLUEWAKE_DPAD_MENUS",
-    "BLUEWAKE_BUTTON_MAP",
-    "BLUEWAKE_SPRINT_SPEED",    "BLUEWAKE_MOUSE_CAMERA",    "BLUEWAKE_MOUSE_SENSITIVITY",
-    "BLUEWAKE_MOUSE_INVERT_Y",  "BLUEWAKE_MOUSE_BUTTONS",   "BLUEWAKE_KEY_MAP",
-    "BLUEWAKE_STICK_CAMERA",    "BLUEWAKE_STICK_CAMERA_SPEED",
-    "BLUEWAKE_STICK_CAMERA_INVERT_X", "BLUEWAKE_STICK_CAMERA_INVERT_Y", "BLUEWAKE_STICK_AIM_SPEED",
-    "BLUEWAKE_STICK_ZOOM",      "BLUEWAKE_STICK_ZOOM_SPEED", "BLUEWAKE_AIM_INVERT_Y",
-    "BLUEWAKE_GYRO_AIM",        "BLUEWAKE_GYRO_AIM_SPEED",
-    "BLUEWAKE_HAPTICS", "BLUEWAKE_HAPTICS_STRENGTH", "BLUEWAKE_HAPTICS_TRIGGERS",
-    "BLUEWAKE_CLIMB",           "BLUEWAKE_CLIMB_STAMINA",
-    "BLUEWAKE_FOREST_WATER_KEEP_TREES", "BLUEWAKE_FOREST_WATER_30_MINUTES",
-    "BLUEWAKE_STAGE_SELECT_TOGGLE", "BLUEWAKE_HD_LOOK",
-    "DOL_AURORA_ASPECT_FIT",    "BLUEWAKE_PAUSE_UNFOCUSED", "BLUEWAKE_SHADERS_FIRST",
-    "BLUEWAKE_SPRINT_CHOICE",   "BLUEWAKE_DSP_MODE",
-};
+// The settings the menu writes, in the file's order (settings_table.h). The
+// rest of the file (keys the menu does not show) is kept as it was.
 
 std::string g_path;                          // the settings file ("" when none)
 std::string g_data_dir;                      // saves and logs (bluewake_settings_set_data_dir)
@@ -155,12 +134,7 @@ std::string trim(std::string text) {
     return text.substr(first, last - first + 1);
 }
 
-bool managed(const std::string& key) {
-    for (const char* k : kKeys)
-        if (key == k)
-            return true;
-    return false;
-}
+bool managed(const std::string& key) { return bw_settings::find(key.c_str()) != nullptr; }
 
 // Better Wind Waker as a mod the user chose: BLUEWAKE_MODS without the
 // widescreen mod, which BLUEWAKE_ASPECT adds at every launch.
@@ -201,7 +175,8 @@ void save() {
     std::fputs("# BlueWake settings, written by the options menu (Esc or F1 in the game).\n"
                "# KEY=VALUE, the host's environment settings; these win over the launch command's.\n",
                file);
-    for (const char* key : kKeys) {
+    for (const bw_settings::Setting& setting : bw_settings::kSettings) {
+        const char* key = setting.key;
         std::string value;
         if (std::strcmp(key, "BLUEWAKE_ASPECT") == 0)
             value = g_aspect;
@@ -378,6 +353,43 @@ bool slider(const char* label, float* value, float low, float high, const char* 
     return changed;
 }
 
+// A setting from settings_table.h; an unknown name is a mistake in this file.
+const bw_settings::Setting& setting(const char* key) {
+    static const bw_settings::Setting kMissing{"", nullptr, bw_settings::Kind::Text, "", 0, 0, "?",
+                                                bw_settings::Tab::Display, false};
+    const bw_settings::Setting* found = bw_settings::find(key);
+    if (found == nullptr)
+        std::fprintf(stderr, "[settings] %s is not in settings_table.h\n", key);
+    return found != nullptr ? *found : kMissing;
+}
+
+// A switch, with its label and default from the table: *on is its value, and
+// true when the player changed it (the variable already set).
+bool setting_checkbox(const char* key, bool* on) {
+    const bw_settings::Setting& s = setting(key);
+    *on = env_on(key, bw_settings::default_on(s));
+    if (!bw_menu_checkbox(s.label, on))
+        return false;
+    set_env(key, *on ? "1" : "0");
+    return true;
+}
+
+// A slider, with its label, default and range from the table, written with
+// `stored` (a printf format for the file): true when changed.
+bool setting_slider(const char* key, const char* shown, const char* stored) {
+    const bw_settings::Setting& s = setting(key);
+    const float fallback = std::strtof(s.fallback, nullptr);
+    float value = static_cast<float>(std::atof(env(key, s.fallback).c_str()));
+    if (!(value > 0.f))
+        value = fallback;
+    if (!slider(s.label, &value, s.low, s.high, shown))
+        return false;
+    char text[16];
+    std::snprintf(text, sizeof text, stored, value);
+    set_env(key, text);
+    return true;
+}
+
 void refresh_smooth_rate() {
     SDL_Window* window = game_window();
     const SDL_DisplayMode* mode = window != nullptr ? SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window)) : nullptr;
@@ -433,9 +445,8 @@ void reset_window() {
 }
 
 void display_tab() {
-    bool hd_look = env_on("BLUEWAKE_HD_LOOK", false);
-    if (bw_menu_checkbox("Wind Waker HD look   (F2)", &hd_look)) {
-        set_env("BLUEWAKE_HD_LOOK", hd_look ? "1" : "0");
+    bool hd_look;
+    if (setting_checkbox("BLUEWAKE_HD_LOOK", &hd_look)) {
         bluewake_hd_look_reload();
         g_dirty = true;
     }
@@ -447,9 +458,8 @@ void display_tab() {
     const bool fullscreen = is_fullscreen();
     if (ImGui::Button(fullscreen ? "Leave fullscreen   (F11 or Alt+Enter)" : "Fullscreen   (F11 or Alt+Enter)"))
         set_fullscreen(!fullscreen);
-    bool start_fullscreen = env_on("DOL_AURORA_FULLSCREEN", false);
-    if (bw_menu_checkbox("Start in fullscreen", &start_fullscreen)) {
-        set_env("DOL_AURORA_FULLSCREEN", start_fullscreen ? "1" : "0");
+    bool start_fullscreen;
+    if (setting_checkbox("DOL_AURORA_FULLSCREEN", &start_fullscreen)) {
         g_dirty = true;
     }
     restart_note();
@@ -471,8 +481,8 @@ void display_tab() {
         set_smooth_motion(smooth == 0 ? nullptr : smooth == 3 ? "display" : smooth == 2 ? "3" : "1");
     ImGui::TextDisabled("The game runs at 30; display changes and overloads can lower the presentation rate.");
 
-    bool fps = env_on("DOL_AURORA_SHOW_FPS", false);
-    if (bw_menu_checkbox("Show the frame rate   (F9)", &fps))
+    bool fps;
+    if (setting_checkbox("DOL_AURORA_SHOW_FPS", &fps))
         set_show_fps(fps);
     ImGui::BeginDisabled(!fps);
     int position = bw_fps_position(env("DOL_AURORA_FPS_POSITION").c_str());
@@ -498,9 +508,8 @@ void display_tab() {
     // stretched to fill it. A widened picture (16:10, 16:9, 21:9) always keeps
     // its shape, so the choice is only for 4:3.
     if (g_aspect == "4:3") {
-        bool keep_shape = env_on("DOL_AURORA_ASPECT_FIT", false);
-        if (bw_menu_checkbox("Keep the picture's shape (black bars rather than stretching)", &keep_shape)) {
-            set_env("DOL_AURORA_ASPECT_FIT", keep_shape ? "1" : "0");
+        bool keep_shape;
+        if (setting_checkbox("DOL_AURORA_ASPECT_FIT", &keep_shape)) {
             g_dirty = g_restart_pending = true;
         }
         restart_note();
@@ -508,15 +517,13 @@ void display_tab() {
         ImGui::TextDisabled("Widened pictures always keep their shape (black bars rather than stretching).");
     }
 
-    bool pause = env_on("BLUEWAKE_PAUSE_UNFOCUSED", false);
-    if (bw_menu_checkbox("Pause while the window is in the background", &pause)) {
-        set_env("BLUEWAKE_PAUSE_UNFOCUSED", pause ? "1" : "0");
+    bool pause;
+    if (setting_checkbox("BLUEWAKE_PAUSE_UNFOCUSED", &pause)) {
         aurora_set_pause_on_focus_lost(pause);
     }
 
-    bool shaders_first = env_on("BLUEWAKE_SHADERS_FIRST", false);
-    if (bw_menu_checkbox("Compile shaders before playing", &shaders_first)) {
-        set_env("BLUEWAKE_SHADERS_FIRST", shaders_first ? "1" : "0");
+    bool shaders_first;
+    if (setting_checkbox("BLUEWAKE_SHADERS_FIRST", &shaders_first)) {
         g_dirty = g_restart_pending = true;
     }
     restart_note();
@@ -644,9 +651,8 @@ void mods_tab() {
 }
 
 void gameplay_tab() {
-    bool stage_select = env_on("BLUEWAKE_STAGE_SELECT_TOGGLE", false);
-    if (bw_menu_checkbox("Developers' stage select (F7)", &stage_select)) {
-        set_env("BLUEWAKE_STAGE_SELECT_TOGGLE", stage_select ? "1" : "0");
+    bool stage_select;
+    if (setting_checkbox("BLUEWAKE_STAGE_SELECT_TOGGLE", &stage_select)) {
         g_dirty = g_restart_pending = true;
     }
     restart_note();
@@ -658,15 +664,13 @@ void gameplay_tab() {
         close_menu();
 
     ImGui::SeparatorText("Forest Water Challenge");
-    bool keep_trees = env_on("BLUEWAKE_FOREST_WATER_KEEP_TREES", false);
-    if (bw_menu_checkbox("Keep watered trees when time runs out", &keep_trees)) {
-        set_env("BLUEWAKE_FOREST_WATER_KEEP_TREES", keep_trees ? "1" : "0");
+    bool keep_trees;
+    if (setting_checkbox("BLUEWAKE_FOREST_WATER_KEEP_TREES", &keep_trees)) {
         bluewake_forest_water_reload();
     }
     ImGui::TextWrapped("Forest Water still expires. Refill and continue with the remaining trees.");
-    bool thirty_minutes = env_on("BLUEWAKE_FOREST_WATER_30_MINUTES", false);
-    if (bw_menu_checkbox("30-minute Forest Water timer", &thirty_minutes)) {
-        set_env("BLUEWAKE_FOREST_WATER_30_MINUTES", thirty_minutes ? "1" : "0");
+    bool thirty_minutes;
+    if (setting_checkbox("BLUEWAKE_FOREST_WATER_30_MINUTES", &thirty_minutes)) {
         bluewake_forest_water_reload();
     }
     ImGui::TextWrapped("Applies the next time you collect Forest Water. Both options are off by default.");
@@ -675,22 +679,19 @@ void gameplay_tab() {
     // One switch, as on Windows and the iPad: short fades and no waiting in
     // the black, or the game's own (BLUEWAKE_FADE_FRAMES 6 or 0, and
     // BLUEWAKE_FAST_FORWARD, which keep working on their own for testing).
-    bool fast = env_on("BLUEWAKE_FAST_FORWARD", true);
-    if (bw_menu_checkbox("Fast transitions (short fades, no waiting in the black)", &fast)) {
-        set_env("BLUEWAKE_FAST_FORWARD", fast ? "1" : "0");
+    bool fast;
+    if (setting_checkbox("BLUEWAKE_FAST_FORWARD", &fast)) {
         set_env("BLUEWAKE_FADE_FRAMES", fast ? "6" : "0");
         bluewake_fast_load_reload();
     }
-    bool doors = env_on("BLUEWAKE_QUICK_DOORS", true);
-    if (bw_menu_checkbox("Quick doors (no walk-in or door closing behind Link)", &doors)) {
-        set_env("BLUEWAKE_QUICK_DOORS", doors ? "1" : "0");
+    bool doors;
+    if (setting_checkbox("BLUEWAKE_QUICK_DOORS", &doors)) {
         bluewake_quick_doors_reload();
     }
 
     ImGui::SeparatorText("Climbing");
-    bool climb = env_on("BLUEWAKE_CLIMB", false);
-    if (bw_menu_checkbox("Wall climbing (experimental)", &climb)) {
-        set_env("BLUEWAKE_CLIMB", climb ? "1" : "0");
+    bool climb;
+    if (setting_checkbox("BLUEWAKE_CLIMB", &climb)) {
         bluewake_climb_reload();
     }
     ImGui::BeginDisabled(!climb);
@@ -783,16 +784,14 @@ void apply_key_map() {
 void controls_tab() {
     BwButtonMap map;
     const bool remapped = bw_button_map_parse(env("BLUEWAKE_BUTTON_MAP"), &map);
-    bool swap_ab = env_on("BLUEWAKE_PAD_SWAP_AB", false), swap_xy = env_on("BLUEWAKE_PAD_SWAP_XY", false);
+    bool swap_ab, swap_xy, swap_lr;
     ImGui::BeginDisabled(remapped);
-    if (bw_menu_checkbox("Swap A and B", &swap_ab)) set_env("BLUEWAKE_PAD_SWAP_AB", swap_ab ? "1" : "0");
-    if (bw_menu_checkbox("Swap X and Y", &swap_xy)) set_env("BLUEWAKE_PAD_SWAP_XY", swap_xy ? "1" : "0");
+    setting_checkbox("BLUEWAKE_PAD_SWAP_AB", &swap_ab);
+    setting_checkbox("BLUEWAKE_PAD_SWAP_XY", &swap_xy);
     ImGui::EndDisabled();
-    bool swap_lr = env_on("BLUEWAKE_PAD_SWAP_LR", false);
-    if (bw_menu_checkbox("Swap L and R (the triggers)", &swap_lr)) set_env("BLUEWAKE_PAD_SWAP_LR", swap_lr ? "1" : "0");
-    bool dpad_menus = env_on("BLUEWAKE_DPAD_MENUS", false);
-    if (bw_menu_checkbox("D-pad moves the cursor in Items and Quest Status", &dpad_menus)) {
-        set_env("BLUEWAKE_DPAD_MENUS", dpad_menus ? "1" : "0");
+    setting_checkbox("BLUEWAKE_PAD_SWAP_LR", &swap_lr);
+    bool dpad_menus;
+    if (setting_checkbox("BLUEWAKE_DPAD_MENUS", &dpad_menus)) {
         bluewake_dpad_menus_reload();
     }
     if (ImGui::CollapsingHeader("Controller buttons")) {
@@ -810,24 +809,16 @@ void controls_tab() {
             set_env("BLUEWAKE_KEY_MAP", bw_key_map_format(keys));
     }
     apply_controller_swaps();
-    bool mouse = env_on("BLUEWAKE_MOUSE_CAMERA", true);
-    if (bw_menu_checkbox("Mouse camera (click the game to use it)", &mouse)) {
-        set_env("BLUEWAKE_MOUSE_CAMERA", mouse ? "1" : "0");
+    bool mouse;
+    if (setting_checkbox("BLUEWAKE_MOUSE_CAMERA", &mouse)) {
         bluewake_mouse_camera_reload();
     }
     ImGui::BeginDisabled(!mouse);
-    float sensitivity = static_cast<float>(std::atof(env("BLUEWAKE_MOUSE_SENSITIVITY", "1.0").c_str()));
-    if (sensitivity <= 0.f)
-        sensitivity = 1.f;
-    if (slider("Mouse sensitivity", &sensitivity, 0.2f, 3.f, "%.2f")) {
-        char text[16];
-        std::snprintf(text, sizeof text, "%.2f", sensitivity);
-        set_env("BLUEWAKE_MOUSE_SENSITIVITY", text);
+    if (setting_slider("BLUEWAKE_MOUSE_SENSITIVITY", "%.2f", "%.2f")) {
         bluewake_mouse_camera_reload();
     }
-    bool invert = env_on("BLUEWAKE_MOUSE_INVERT_Y", false);
-    if (bw_menu_checkbox("Invert the mouse's up and down", &invert)) {
-        set_env("BLUEWAKE_MOUSE_INVERT_Y", invert ? "1" : "0");
+    bool invert;
+    if (setting_checkbox("BLUEWAKE_MOUSE_INVERT_Y", &invert)) {
         bluewake_mouse_camera_reload();
     }
     if (ImGui::CollapsingHeader("Mouse buttons")) {
@@ -845,77 +836,45 @@ void controls_tab() {
     ImGui::EndDisabled();
 
     ImGui::Separator();
-    bool stick = env_on("BLUEWAKE_STICK_CAMERA", true);
-    if (bw_menu_checkbox("Direct right-stick camera and aiming", &stick)) {
-        set_env("BLUEWAKE_STICK_CAMERA", stick ? "1" : "0");
+    bool stick;
+    if (setting_checkbox("BLUEWAKE_STICK_CAMERA", &stick)) {
         bluewake_mouse_camera_reload();
     }
     ImGui::BeginDisabled(!stick);
-    float speed = static_cast<float>(std::atof(env("BLUEWAKE_STICK_CAMERA_SPEED", "360").c_str()));
-    if (speed <= 0.f)
-        speed = 360.f;
-    if (slider("Right-stick turn speed", &speed, 120.f, 720.f, "%.0f degrees a second")) {
-        char text[16];
-        std::snprintf(text, sizeof text, "%.0f", speed);
-        set_env("BLUEWAKE_STICK_CAMERA_SPEED", text);
+    if (setting_slider("BLUEWAKE_STICK_CAMERA_SPEED", "%.0f degrees a second", "%.0f")) {
         bluewake_mouse_camera_reload();
     }
-    float aim = static_cast<float>(std::atof(env("BLUEWAKE_STICK_AIM_SPEED", "180").c_str()));
-    if (aim <= 0.f)
-        aim = 180.f;
-    if (slider("Right-stick aim speed (first person, items)", &aim, 60.f, 480.f,
-               "%.0f degrees a second")) {
-        char text[16];
-        std::snprintf(text, sizeof text, "%.0f", aim);
-        set_env("BLUEWAKE_STICK_AIM_SPEED", text);
+    if (setting_slider("BLUEWAKE_STICK_AIM_SPEED", "%.0f degrees a second", "%.0f")) {
         bluewake_mouse_camera_reload();
     }
-    bool stick_zoom = env_on("BLUEWAKE_STICK_ZOOM", false);
-    if (bw_menu_checkbox("Hold the right-stick click and move it up/down to zoom", &stick_zoom)) {
-        set_env("BLUEWAKE_STICK_ZOOM", stick_zoom ? "1" : "0");
+    bool stick_zoom;
+    if (setting_checkbox("BLUEWAKE_STICK_ZOOM", &stick_zoom)) {
         bluewake_mouse_camera_reload();
     }
     ImGui::BeginDisabled(!stick_zoom);
-    float zoom_speed = static_cast<float>(std::atof(env("BLUEWAKE_STICK_ZOOM_SPEED", "1.275").c_str()));
-    if (!(zoom_speed > 0.f))
-        zoom_speed = 1.275f;
-    if (slider("Controller zoom speed", &zoom_speed, 0.25f, 2.f, "%.3fx")) {
-        char text[16];
-        std::snprintf(text, sizeof text, "%.3f", zoom_speed);
-        set_env("BLUEWAKE_STICK_ZOOM_SPEED", text);
+    if (setting_slider("BLUEWAKE_STICK_ZOOM_SPEED", "%.3fx", "%.3f")) {
         bluewake_mouse_camera_reload();
     }
     ImGui::EndDisabled();
-    bool invert_x = env_on("BLUEWAKE_STICK_CAMERA_INVERT_X", false);
-    if (bw_menu_checkbox("Invert the right stick's left and right", &invert_x)) {
-        set_env("BLUEWAKE_STICK_CAMERA_INVERT_X", invert_x ? "1" : "0");
+    bool invert_x;
+    if (setting_checkbox("BLUEWAKE_STICK_CAMERA_INVERT_X", &invert_x)) {
         bluewake_mouse_camera_reload();
     }
-    bool invert_y = env_on("BLUEWAKE_STICK_CAMERA_INVERT_Y", false);
-    if (bw_menu_checkbox("Invert the right stick's up and down", &invert_y)) {
-        set_env("BLUEWAKE_STICK_CAMERA_INVERT_Y", invert_y ? "1" : "0");
+    bool invert_y;
+    if (setting_checkbox("BLUEWAKE_STICK_CAMERA_INVERT_Y", &invert_y)) {
         bluewake_mouse_camera_reload();
     }
     ImGui::EndDisabled();
-    bool aim_invert = env_on("BLUEWAKE_AIM_INVERT_Y", false);
-    if (bw_menu_checkbox("Invert the left stick's up and down when aiming (first person, items)", &aim_invert)) {
-        set_env("BLUEWAKE_AIM_INVERT_Y", aim_invert ? "1" : "0");
+    bool aim_invert;
+    if (setting_checkbox("BLUEWAKE_AIM_INVERT_Y", &aim_invert)) {
         bluewake_mouse_camera_reload();
     }
-    bool gyro = env_on("BLUEWAKE_GYRO_AIM", false);
-    if (bw_menu_checkbox("Gyro aiming: move the controller to aim (DualSense, DualShock 4, Switch Pro, Steam Deck)",
-                        &gyro)) {
-        set_env("BLUEWAKE_GYRO_AIM", gyro ? "1" : "0");
+    bool gyro;
+    if (setting_checkbox("BLUEWAKE_GYRO_AIM", &gyro)) {
         bluewake_mouse_camera_reload();
     }
     ImGui::BeginDisabled(!gyro);
-    float gyro_speed = static_cast<float>(std::atof(env("BLUEWAKE_GYRO_AIM_SPEED", "1").c_str()));
-    if (!(gyro_speed > 0.f))
-        gyro_speed = 1.f;
-    if (slider("Gyro aim speed", &gyro_speed, 0.25f, 4.f, "%.2fx")) {
-        char text[16];
-        std::snprintf(text, sizeof text, "%.2f", gyro_speed);
-        set_env("BLUEWAKE_GYRO_AIM_SPEED", text);
+    if (setting_slider("BLUEWAKE_GYRO_AIM_SPEED", "%.2fx", "%.2f")) {
         bluewake_mouse_camera_reload();
     }
     ImGui::EndDisabled();
@@ -948,9 +907,8 @@ void controls_tab() {
     }
     ImGui::EndDisabled();
     ImGui::BeginDisabled(haptics != 2);
-    bool triggers = env_on("BLUEWAKE_HAPTICS_TRIGGERS", true);
-    if (bw_menu_checkbox("Trigger feedback (Xbox impulse triggers, DualSense trigger vibration)", &triggers)) {
-        set_env("BLUEWAKE_HAPTICS_TRIGGERS", triggers ? "1" : "0");
+    bool triggers;
+    if (setting_checkbox("BLUEWAKE_HAPTICS_TRIGGERS", &triggers)) {
         bluewake_haptics_reload();
     }
     ImGui::EndDisabled();
