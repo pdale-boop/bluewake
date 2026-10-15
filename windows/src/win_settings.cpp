@@ -14,7 +14,6 @@
 // - the UI's scale and font, the first seconds' hint, and the frame rate line
 //   in the session log.
 #include "win_settings.h"
-#include "settings_file.h"
 #include "restart_request.h"
 #include "launch_marker.h"
 
@@ -62,6 +61,10 @@ float calculate_game_fps() noexcept;
 }  // namespace aurora::gfx
 
 namespace {
+
+// The window's size and place (settings_table.h's Windows-only rows).
+constexpr const char* kBwWindowKey = "DOL_AURORA_WINDOW";
+constexpr const char* kBwWindowPositionKey = "BLUEWAKE_WINDOW_POSITION";
 
 std::string g_data_dir;
 std::vector<wchar_t> g_environment;  // as BlueWake was started, for Restart
@@ -347,9 +350,6 @@ void restart() {
         std::fprintf(stderr, "[windows] restart refused: settings save or quit request failed\n");
 }
 
-// A file from before the menus were shared (aspect=, option.NAME=...), as the
-// shared lines (settings_file.h).
-bool convert_old_file(bw_desktop::Lines& lines) { return bw_settings_convert_old(lines, ::default_pack_folder()); }
 
 }  // namespace bw_platform
 

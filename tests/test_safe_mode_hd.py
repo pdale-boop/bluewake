@@ -46,18 +46,17 @@ std::string read_file(const std::string& path) {
 #include "desktop_settings.cpp"
 '''
 
-# Each platform's hooks, as its file defines the one the core calls; the rest of
+# Each platform's hook, as its file defines the one the core calls; the rest of
 # what differs is settings_table.h's, compiled for that platform (BW_SETTINGS_OS).
 MAC = r'''
 namespace bw_platform {
-bool convert_old_file(bw_desktop::Lines&) { return false; }
+std::string default_pack_folder() { return ""; }
 }
 '''
 
 WINDOWS = r'''
-#include "settings_file.h"
 namespace bw_platform {
-bool convert_old_file(bw_desktop::Lines& lines) { return bw_settings_convert_old(lines, "Load/Textures/GZLE01"); }
+std::string default_pack_folder() { return "Load/Textures/GZLE01"; }
 }
 '''
 

@@ -10,6 +10,7 @@
 #include "desktop_settings.h"
 #include "atomic_file.h"
 #include "launch_marker.h"
+#include "old_windows_settings.h"
 #include "settings_table.h"
 
 #include <algorithm>
@@ -272,7 +273,9 @@ void load(const std::string& path, const std::string& read_instead) {
         if (!path.empty())
             std::fprintf(stderr, "[settings] no settings file yet (%s)\n", path.c_str());
     } else {
-        const bool converted = bw_platform::convert_old_file(lines);
+        // A Windows file from before the menus were one is read through the
+        // table's old keys (old_windows_settings.h).
+        const bool converted = bw_settings::convert_old_windows(lines, bw_platform::default_pack_folder());
         for (const auto& [key, value] : lines)
             read_line(key, value);
         std::fprintf(stderr, "[settings] %d settings from %s\n", static_cast<int>(lines.size()), path.c_str());

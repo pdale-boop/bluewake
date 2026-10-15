@@ -1,40 +1,20 @@
+// The old Windows settings file, converted through settings_table.h
+// (runtime/host/src/old_windows_settings.h): a player's every setting carries
+// over, into the desktop format's keys and values.
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 #include <cassert>
-#include <cmath>
 #include <cstring>
+#include <map>
 #include <sstream>
-#include "../windows/src/settings_file.h"
+#include <string>
+#include "../runtime/host/src/old_windows_settings.h"
 
-// Every setting the file keeps (not the session-only option_defaults_off).
-static bool same(const Settings& a, const Settings& b) {
-    const auto near = [](double x, double y) { return std::fabs(x - y) < 0.006; };
-    return a.fullscreen == b.fullscreen && a.window_w == b.window_w && a.window_h == b.window_h &&
-           a.window_x == b.window_x && a.window_y == b.window_y && a.render_scale == b.render_scale &&
-           a.anisotropy == b.anisotropy && a.smooth_motion == b.smooth_motion && a.smooth_steps == b.smooth_steps &&
-           a.show_fps == b.show_fps && a.fps_position == b.fps_position && a.pause_unfocused == b.pause_unfocused &&
-           a.shaders_first == b.shaders_first && a.mouse_camera == b.mouse_camera &&
-           near(a.mouse_sensitivity, b.mouse_sensitivity) && a.mouse_invert_y == b.mouse_invert_y &&
-           a.controller_swap_ab == b.controller_swap_ab && a.controller_swap_xy == b.controller_swap_xy &&
-           a.controller_swap_lr == b.controller_swap_lr && a.dpad_menus == b.dpad_menus &&
-           a.button_map == b.button_map && a.mouse_buttons == b.mouse_buttons && a.key_map == b.key_map &&
-           a.pad_invert_x == b.pad_invert_x && a.pad_invert_y == b.pad_invert_y && a.stick_camera == b.stick_camera &&
-           a.stick_speed == b.stick_speed && a.stick_aim_speed == b.stick_aim_speed && a.stick_zoom == b.stick_zoom &&
-           near(a.stick_zoom_speed, b.stick_zoom_speed) && a.aim_invert_y == b.aim_invert_y &&
-           a.gyro_aim == b.gyro_aim && near(a.gyro_aim_speed, b.gyro_aim_speed) && a.climb == b.climb &&
-           a.climb_stamina == b.climb_stamina && a.forest_keep_trees == b.forest_keep_trees &&
-           a.forest_30_minutes == b.forest_30_minutes && a.hd_look == b.hd_look && a.haptics == b.haptics &&
-           a.haptics_strength == b.haptics_strength && a.haptics_triggers == b.haptics_triggers &&
-           a.aspect == b.aspect && a.keep_aspect == b.keep_aspect && a.betterww == b.betterww &&
-           a.options == b.options && a.hd_textures == b.hd_textures && a.texture_pack == b.texture_pack &&
-           a.lle_audio == b.lle_audio && a.movement_extras == b.movement_extras &&
-           near(a.sprint_speed, b.sprint_speed) && a.fast_transitions == b.fast_transitions &&
-           a.quick_doors == b.quick_doors && a.stage_select == b.stage_select;
-}
+using bw_settings::OldLines;
 
-static BwSettingsLines lines_of(const char* text) {
-    BwSettingsLines lines;
+static OldLines lines_of(const char* text) {
+    OldLines lines;
     std::istringstream in(text);
     std::string line;
     while (std::getline(in, line)) {
@@ -45,23 +25,15 @@ static BwSettingsLines lines_of(const char* text) {
     return lines;
 }
 
-static Settings round_trip(const Settings& d, const std::string& pack, BwSettingsLines* other = nullptr) {
-    Settings back;
-    BwSettingsLines unknown;
-    bw_settings_read_new(bw_settings_write_new(d, pack), pack, back, other != nullptr ? *other : unknown);
-    return back;
+static std::map<std::string, std::string> values_of(const OldLines& lines) {
+    std::map<std::string, std::string> values;
+    for (const auto& [key, value] : lines)
+        assert(values.emplace(key, value).second);  // each key once
+    return values;
 }
 
 int main() {
     const std::string pack = "C:\\Users\\p\\AppData\\Roaming\\BlueWake\\Load\\Textures\\GZLE01";
-
-    // The defaults, and every table key written, in the table's order.
-    const Settings defaults;
-    const BwSettingsLines written = bw_settings_write_new(defaults, pack);
-    assert(static_cast<int>(written.size()) >= bw_settings::kCount);
-    for (int i = 0; i < bw_settings::kCount; ++i)
-        assert(written[i].first == bw_settings::kSettings[i].key);
-    assert(same(round_trip(defaults, pack), defaults));
 
     // An old Windows file, a player's: every setting carries over.
     const char* old_file =
@@ -75,44 +47,88 @@ int main() {
         "climb_stamina=20\nforest_water_keep_trees=1\nforest_water_30_minutes=1\nhd_look=1\n"
         "texture_pack=D:\\Packs\\WWHD\nhaptics=classic\nhaptics_strength=35\nhaptics_triggers=0\naspect=21:9\n"
         "keep_aspect=0\nbetterww=1\nhd_textures=1\nlle_audio=1\noption.swift_sail=1\noption.instant_text=0\n"
-        "movement_extras=1\nsprint_speed=1.84\nfast_transitions=1\nquick_doors=1\nstage_select=1\n";
-    Settings player;
-    for (const auto& [k, v] : lines_of(old_file))
-        assert(bw_settings_read_old(k, v, player));
-    assert(player.aspect == "21:9" && player.texture_pack == "D:\\Packs\\WWHD" && player.smooth_steps == -1);
-    assert(same(round_trip(player, pack), player));
+        "movement_extras=1\nsprint_speed=1.84\nfast_transitions=1\nquick_doors=1\nstage_select=1\n"
+        "picto_crop=1\n";
+    OldLines player = lines_of(old_file);
+    assert(bw_settings::convert_old_windows(player, pack));
+    const auto v = values_of(player);
+    const std::map<std::string, std::string> expected = {
+        {"DOL_AURORA_FULLSCREEN", "1"}, {"DOL_AURORA_WINDOW", "1920x1080"}, {"BLUEWAKE_WINDOW_POSITION", "40,60"},
+        {"DOL_AURORA_RENDER_SCALE", "3"}, {"DOL_AURORA_FORCE_ANISO", "8"}, {"DOL_AURORA_FRAME_INTERP", "1"},
+        {"DOL_AURORA_SHOW_FPS", "1"}, {"BLUEWAKE_PAUSE_UNFOCUSED", "1"}, {"DOL_AURORA_FPS_POSITION", "top-left"},
+        {"BLUEWAKE_SHADERS_FIRST", "1"}, {"DOL_AURORA_FRAME_INTERP_STEPS", "display"},
+        {"BLUEWAKE_MOUSE_CAMERA", "0"}, {"BLUEWAKE_MOUSE_SENSITIVITY", "0.35"}, {"BLUEWAKE_MOUSE_INVERT_Y", "1"},
+        {"BLUEWAKE_PAD_SWAP_AB", "1"}, {"BLUEWAKE_PAD_SWAP_XY", "1"}, {"BLUEWAKE_PAD_SWAP_LR", "1"},
+        {"BLUEWAKE_DPAD_MENUS", "1"}, {"BLUEWAKE_BUTTON_MAP", "1,0,2,3,10,6"},
+        {"BLUEWAKE_MOUSE_BUTTONS", "a,b,x,y,z"}, {"BLUEWAKE_KEY_MAP", "13,14,24,12,20,8,21,40"},
+        {"BLUEWAKE_STICK_CAMERA_INVERT_X", "1"}, {"BLUEWAKE_STICK_CAMERA_INVERT_Y", "1"},
+        {"BLUEWAKE_STICK_CAMERA", "0"}, {"BLUEWAKE_STICK_CAMERA_SPEED", "500"}, {"BLUEWAKE_STICK_AIM_SPEED", "90"},
+        {"BLUEWAKE_STICK_ZOOM", "1"}, {"BLUEWAKE_STICK_ZOOM_SPEED", "0.750"}, {"BLUEWAKE_AIM_INVERT_Y", "1"},
+        {"BLUEWAKE_GYRO_AIM", "1"}, {"BLUEWAKE_GYRO_AIM_SPEED", "2.50"}, {"BLUEWAKE_CLIMB", "1"},
+        {"BLUEWAKE_CLIMB_STAMINA", "20"}, {"BLUEWAKE_FOREST_WATER_KEEP_TREES", "1"},
+        {"BLUEWAKE_FOREST_WATER_30_MINUTES", "1"}, {"BLUEWAKE_HD_LOOK", "1"},
+        {"DOL_AURORA_TEXTURE_PACK", "D:\\Packs\\WWHD"}, {"BLUEWAKE_TEXTURE_PACK_FOLDER", ""},
+        {"BLUEWAKE_HAPTICS", "classic"}, {"BLUEWAKE_HAPTICS_STRENGTH", "35"}, {"BLUEWAKE_HAPTICS_TRIGGERS", "0"},
+        {"BLUEWAKE_ASPECT", "21:9"}, {"DOL_AURORA_ASPECT_FIT", "0"}, {"BLUEWAKE_MODS", "betterww"},
+        {"BLUEWAKE_DSP_MODE", "lle"}, {"BLUEWAKE_OPTIONS", "-instant_text,swift_sail"},
+        {"BLUEWAKE_JUMP_BUTTON", "1"}, {"BLUEWAKE_SPRINT_SPEED", "1.84"}, {"BLUEWAKE_SPRINT_CHOICE", "1.84"},
+        {"BLUEWAKE_FAST_FORWARD", "1"}, {"BLUEWAKE_FADE_FRAMES", "6"}, {"BLUEWAKE_QUICK_DOORS", "1"},
+        {"BLUEWAKE_STAGE_SELECT_TOGGLE", "1"}, {"picto_crop", "1"}};
+    for (const auto& [key, value] : expected) {
+        const auto found = v.find(key);
+        assert(found != v.end() && found->second == value);
+    }
+    assert(v.size() == expected.size());
+    // In the table's order, then the line nobody knew.
+    int last = -1;
+    for (const auto& [key, value] : player) {
+        if (key == "picto_crop")
+            break;
+        const int at = static_cast<int>(bw_settings::find(key.c_str()) - bw_settings::kSettings);
+        assert(at > last);
+        last = at;
+    }
+    assert(player.back().first == "picto_crop");
 
-    // HD textures off keep the folder for when they come back; the default
-    // folder is written out and read back as "".
-    Settings off = player;
-    off.hd_textures = false;
-    assert(same(round_trip(off, pack), off));
-    Settings default_folder = player;
-    default_folder.texture_pack = "";
-    const BwSettingsLines lines = bw_settings_write_new(default_folder, pack);
-    for (const auto& [k, v] : lines)
-        if (k == "DOL_AURORA_TEXTURE_PACK")
-            assert(v == pack);
-    assert(same(round_trip(default_folder, pack), default_folder));
+    // HD textures off keep the folder for when they come back; on without a
+    // folder of their own is the default one.
+    OldLines off = lines_of("hd_textures=0\ntexture_pack=D:\\Packs\\WWHD\n");
+    assert(bw_settings::convert_old_windows(off, pack));
+    assert(values_of(off).at("DOL_AURORA_TEXTURE_PACK").empty());
+    assert(values_of(off).at("BLUEWAKE_TEXTURE_PACK_FOLDER") == "D:\\Packs\\WWHD");
+    OldLines default_folder = lines_of("hd_textures=1\n");
+    assert(bw_settings::convert_old_windows(default_folder, pack));
+    assert(values_of(default_folder).at("DOL_AURORA_TEXTURE_PACK") == pack);
 
     // Jump & Sprint off keeps the chosen speed; the host's own key is 1.
-    Settings walking = player;
-    walking.movement_extras = false;
-    assert(same(round_trip(walking, pack), walking));
+    OldLines walking = lines_of("movement_extras=0\nsprint_speed=1.84\n");
+    assert(bw_settings::convert_old_windows(walking, pack));
+    assert(values_of(walking).at("BLUEWAKE_JUMP_BUTTON") == "0" && values_of(walking).at("BLUEWAKE_SPRINT_SPEED") == "1");
+    assert(values_of(walking).at("BLUEWAKE_SPRINT_CHOICE") == "1.84");
 
-    // Lines this doesn't know stay, as they were.
-    BwSettingsLines in = bw_settings_write_new(player, pack), other;
-    in.emplace_back("BLUEWAKE_PICTO_CROP", "1");
-    in.emplace_back("SOMETHING_ELSE", "x=y");
-    Settings back;
-    bw_settings_read_new(in, pack, back, other);
-    assert(same(back, player));
-    assert(other.size() == 2 && other[0].first == "BLUEWAKE_PICTO_CROP" && other[1].second == "x=y");
+    // Values read as the old file read them: a switch's true/yes/on, a number
+    // kept in its range, a choice it didn't know as the default one.
+    OldLines loose = lines_of("climb=yes\nhd_look=true\nshow_fps=no\nrender_scale=9\nanisotropy=0\n"
+                              "aspect=5:4\nhaptics=strong\nsmooth_motion_fps=120\n");
+    assert(bw_settings::convert_old_windows(loose, pack));
+    const auto l = values_of(loose);
+    assert(l.at("BLUEWAKE_CLIMB") == "1" && l.at("BLUEWAKE_HD_LOOK") == "1" && l.at("DOL_AURORA_SHOW_FPS") == "0");
+    assert(l.at("DOL_AURORA_RENDER_SCALE") == "4" && l.at("DOL_AURORA_FORCE_ANISO") == "1");
+    assert(l.at("BLUEWAKE_ASPECT") == "4:3" && l.at("BLUEWAKE_HAPTICS") == "enhanced");
+    assert(l.at("DOL_AURORA_FRAME_INTERP_STEPS") == "3");
 
-    // A Mac or Linux file's options ("none" and the ones on).
-    Settings mac;
-    BwSettingsLines unused;
-    bw_settings_read_new(lines_of("BLUEWAKE_OPTIONS=none,instant_text,swift_sail\n"), pack, mac, unused);
-    assert(mac.options.size() == 2 && mac.options["instant_text"] && mac.options["swift_sail"]);
+    // A file in the desktop format (with a line nobody knows) is not old.
+    OldLines current = lines_of("BLUEWAKE_ASPECT=16:9\nBLUEWAKE_OPTIONS=none,instant_text\npicto_crop=1\n");
+    const OldLines before = current;
+    assert(!bw_settings::convert_old_windows(current, pack));
+    assert(current == before);
+
+    // Every old key names a row, once (the two that became two settings aside).
+    for (const bw_settings::Setting& s : bw_settings::kSettings) {
+        if (s.old_windows == nullptr || !std::strcmp(s.old_windows, "fast_transitions") ||
+            !std::strcmp(s.old_windows, "sprint_speed"))
+            continue;
+        assert(bw_settings::old_row(s.old_windows) == &s);
+    }
     return 0;
 }

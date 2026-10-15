@@ -111,9 +111,5 @@ void reset_window();
 // Restart now: false where the app cannot start itself again (the Mac app).
 bool can_restart();
 void restart();
-// A settings file in an older format of this platform's, turned into the
-// shared lines: true when `lines` were converted (the old file is copied aside
-// first, then written in the new format).
-bool convert_old_file(bw_desktop::Lines& lines);
 
 }  // namespace bw_platform

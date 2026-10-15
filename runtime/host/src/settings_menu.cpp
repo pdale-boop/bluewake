@@ -211,7 +211,6 @@ void restart() {
     SDL_PushEvent(&quit);
 }
 
-bool convert_old_file(bw_desktop::Lines&) { return false; }
 
 }  // namespace bw_platform
 
