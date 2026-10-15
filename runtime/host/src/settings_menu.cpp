@@ -687,15 +687,15 @@ bool draw_custom(const bw_settings::Setting& s) {
         return true;
     }
     if (std::strcmp(s.key, "BLUEWAKE_DSP_MODE") == 0) {
-        // Two ways to make the sound, drawn like every other list of choices.
-        static const char* const kSound[] = {"Fast (Dolphin's high-level Zelda sound)",
-                                             "Exact (the sound chip's own program; slower)"};
-        int exact = env(s.key, s.fallback) == "lle" ? 1 : 0;
-        if (bw_menu_combo("How the sound is made", &exact, kSound, 2)) {
+        // Two ways to make the sound: a switch, not a list of two.
+        bool exact = env(s.key, s.fallback) == "lle";
+        if (bw_menu_checkbox("Exact sound (the sound chip's own program)", &exact)) {
             set_env(s.key, exact ? "lle" : "hle");
             g_dirty = g_restart_pending = true;
         }
         restart_note();
+        ImGui::TextDisabled("Off: Dolphin's high-level Zelda sound, which is faster. On: the chip's own "
+                            "program, which is slower but exact.");
         return true;
     }
     if (std::strcmp(s.key, "BLUEWAKE_STAGE_SELECT_TOGGLE") == 0) {

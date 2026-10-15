@@ -27,6 +27,16 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     const int at = std::clamp(*index, 0, count > 0 ? count - 1 : 0);
     const float width = ImGui::GetContentRegionAvail().x;
     const float slot = count > 0 ? width / static_cast<float>(count) : width;
+    // Where the slider's steps fall, so the names sit over their own notch:
+    // the track is inset by half a handle at each end (below, and ImGui's own
+    // grab arithmetic), and the steps divide what is left.
+    const float handle = std::clamp(slot * 0.45f, 12.f, ImGui::GetFrameHeight() * 1.1f);
+    const float inset = handle * 0.5f + 2.f;
+    const auto step_x = [&](float origin_x, int i) {
+        return count > 1 ? origin_x + inset + (width - inset * 2.f) * (static_cast<float>(i) /
+                                                                      static_cast<float>(count - 1))
+                         : origin_x + width * 0.5f;
+    };
     float widest = 0.f;
     for (int i = 0; i < count; ++i)
         widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
@@ -37,7 +47,7 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
         const ImU32 quiet = ImGui::GetColorU32(ImGuiCol_TextDisabled);
         for (int i = 0; i < count; ++i) {
             const float text = ImGui::CalcTextSize(items[i]).x;
-            const float x = origin.x + slot * (static_cast<float>(i) + 0.5f) - text * 0.5f;
+            const float x = step_x(origin.x, i) - text * 0.5f;
             list->AddText(ImVec2(std::clamp(x, origin.x, origin.x + width - text), origin.y),
                           i == at ? chosen : quiet, items[i]);
         }
@@ -48,7 +58,7 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     // A chooser, not a scrubber. ImGui keeps the behaviour but draws no handle:
     // ours is drawn below, lit from above, over a track notched once per step.
     // Narrow enough to point at a step rather than cover it.
-    const float grab_w = std::clamp(slot * 0.45f, 12.f, ImGui::GetFrameHeight() * 1.1f);
+    const float grab_w = handle;
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, IM_COL32_BLACK_TRANS);
     ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, IM_COL32_BLACK_TRANS);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, grab_w);
@@ -67,20 +77,15 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
                    1.f);
     if (count > 1) {
         const ImU32 tint = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.45f);
-        const float inset = grab_w * 0.5f + 2.f;
-        for (int i = 0; i < count; ++i) {
-            const float t = static_cast<float>(i) / static_cast<float>(count - 1);
-            const float x = lo.x + inset + (hi.x - lo.x - inset * 2.f) * t;
-            paint->AddLine(ImVec2(x, hi.y - 4.f), ImVec2(x, hi.y - 2.f), tint, 1.f);
-        }
+        for (int i = 0; i < count; ++i)
+            paint->AddLine(ImVec2(step_x(lo.x, i), hi.y - 4.f), ImVec2(step_x(lo.x, i), hi.y - 2.f), tint, 1.f);
     }
     // The handle: a shadow beneath it, its face brighter at the top than the
     // bottom, and a thin highlight along its top edge.
     {
         const float pad = 2.f;
         const float sz = std::min(grab_w, hi.x - lo.x - pad * 2.f);
-        const float t = count > 1 ? static_cast<float>(at) / static_cast<float>(count - 1) : 0.f;
-        const float cx = (lo.x + pad + sz * 0.5f) + (hi.x - pad - sz * 0.5f - (lo.x + pad + sz * 0.5f)) * t;
+        const float cx = step_x(lo.x, at);
         const ImVec2 a(cx - sz * 0.5f, lo.y + pad), b(cx + sz * 0.5f, hi.y - pad);
         const float r = (b.y - a.y) * 0.5f;
         const ImVec4 face = ImGui::GetStyleColorVec4(ImGuiCol_SliderGrab);
