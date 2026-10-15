@@ -52,19 +52,28 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
         for (int i = 0; i < count; ++i) {
             const float text = ImGui::CalcTextSize(items[i]).x;
             const float x = std::clamp(step_x(origin.x, i) - text * 0.5f, origin.x, origin.x + width - text);
-            const ImVec2 a(x - pad, origin.y - 1.f), b(x + text + pad, origin.y + line + 1.f);
+            // The button is the whole cell its name sits in, so what lights up
+            // under the pointer is a block, not a line drawn round the words.
+            const ImVec2 a(std::max(origin.x, std::min(x - pad, step_x(origin.x, i) - slot * 0.5f + 1.f)),
+                           origin.y - 1.f);
+            const ImVec2 b(std::min(origin.x + width, std::max(x + text + pad, step_x(origin.x, i) + slot * 0.5f - 1.f)),
+                           origin.y + line + 1.f);
             ImGui::SetCursorScreenPos(a);
             ImGui::InvisibleButton(items[i], ImVec2(b.x - a.x, b.y - a.y));
-            // An invisible button draws no highlight of its own, so a pad or
-            // the keyboard would land on it with nothing to see: the same
-            // outline marks the pointer being over it and the focus being on it.
-            if (ImGui::IsItemHovered() || ImGui::IsItemFocused())
-                list->AddRect(a, b, outline, ImGui::GetStyle().FrameRounding * 0.75f, 0, 1.f);
+            // An invisible button draws nothing of its own, so a pad or the
+            // keyboard would land on it with nothing to see: the cell fills for
+            // the pointer being over it and for the focus being on it alike.
+            const bool lit = ImGui::IsItemHovered() || ImGui::IsItemFocused();
+            if (lit) {
+                const float round = ImGui::GetStyle().FrameRounding * 0.75f;
+                list->AddRectFilled(a, b, ImGui::GetColorU32(ImGuiCol_HeaderHovered), round);
+                list->AddRect(a, b, outline, round, 0, 1.f);
+            }
             if (ImGui::IsItemActivated()) {
                 *index = i;
                 picked = true;
             }
-            list->AddText(ImVec2(x, origin.y), i == at || picked ? chosen : quiet, items[i]);
+            list->AddText(ImVec2(x, origin.y), i == at || picked || lit ? chosen : quiet, items[i]);
         }
         ImGui::SetCursorScreenPos(origin);
         ImGui::Dummy(ImVec2(width, line));

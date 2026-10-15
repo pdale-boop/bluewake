@@ -1286,8 +1286,10 @@ void draw(void*) {
             const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
             const ImVec2 middle((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
             ImDrawList* paint = ImGui::GetWindowDrawList();
-            if (over)
+            if (over) { // the whole button lights up, not an outline of it
+                paint->AddCircleFilled(middle, size * 0.5f, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
                 paint->AddCircle(middle, size * 0.5f, ImGui::GetColorU32(ImGuiCol_SliderGrab, 0.85f), 0, 1.f);
+            }
             const float arm = size * 0.22f;
             const ImU32 ink = ImGui::GetColorU32(over ? ImGuiCol_Text : ImGuiCol_TextDisabled);
             paint->AddLine(ImVec2(middle.x - arm, middle.y - arm), ImVec2(middle.x + arm, middle.y + arm), ink, 1.6f);
