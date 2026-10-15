@@ -45,29 +45,54 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     } else {
         ImGui::TextUnformatted(items[at]);
     }
-    // A chooser, not a scrubber: the handle covers the step it is on, rounded
-    // and quieter than ImGui's default, over a track notched once per step.
-    const ImVec4 grab = ImGui::GetStyleColorVec4(ImGuiCol_SliderGrab);
-    const ImVec4 active = ImGui::GetStyleColorVec4(ImGuiCol_SliderGrabActive);
-    ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(grab.x, grab.y, grab.z, grab.w * 0.55f));
-    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(active.x, active.y, active.z, active.w * 0.8f));
-    ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, std::max(14.f, slot * 0.9f));
-    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, ImGui::GetStyle().FrameRounding + 2.f);
+    // A chooser, not a scrubber. ImGui keeps the behaviour but draws no handle:
+    // ours is drawn below, lit from above, over a track notched once per step.
+    const float grab_w = std::max(14.f, slot * 0.9f);
+    ImGui::PushStyleColor(ImGuiCol_SliderGrab, IM_COL32_BLACK_TRANS);
+    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, IM_COL32_BLACK_TRANS);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, grab_w);
     ImGui::SetNextItemWidth(-1.f);
     bool changed = ImGui::SliderInt("##value", index, 0, count - 1, "", ImGuiSliderFlags_NoInput);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar();
     ImGui::PopStyleColor(2);
+
+    const ImVec2 lo = ImGui::GetItemRectMin(), hi = ImGui::GetItemRectMax();
+    ImDrawList* paint = ImGui::GetWindowDrawList();
+    const float round = ImGui::GetStyle().FrameRounding;
+    // The track as a groove: a dark edge under its top, a light one on its
+    // floor, so it reads as cut into the panel rather than drawn on it.
+    paint->AddLine(ImVec2(lo.x + round, lo.y + 1.f), ImVec2(hi.x - round, lo.y + 1.f), IM_COL32(0, 0, 0, 60), 1.f);
+    paint->AddLine(ImVec2(lo.x + round, hi.y - 1.f), ImVec2(hi.x - round, hi.y - 1.f), IM_COL32(255, 255, 255, 18),
+                   1.f);
     if (count > 1) {
-        // One notch per step, on the track, quiet enough to read as a scale.
-        const ImVec2 lo = ImGui::GetItemRectMin(), hi = ImGui::GetItemRectMax();
-        ImDrawList* notches = ImGui::GetWindowDrawList();
-        const ImU32 tint = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.5f);
-        const float inset = std::max(7.f, slot * 0.45f);
+        const ImU32 tint = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.45f);
+        const float inset = grab_w * 0.5f + 2.f;
         for (int i = 0; i < count; ++i) {
             const float t = static_cast<float>(i) / static_cast<float>(count - 1);
             const float x = lo.x + inset + (hi.x - lo.x - inset * 2.f) * t;
-            notches->AddLine(ImVec2(x, hi.y - 3.f), ImVec2(x, hi.y - 1.f), tint, 1.f);
+            paint->AddLine(ImVec2(x, hi.y - 4.f), ImVec2(x, hi.y - 2.f), tint, 1.f);
         }
+    }
+    // The handle: a shadow beneath it, its face brighter at the top than the
+    // bottom, and a thin highlight along its top edge.
+    {
+        const float pad = 2.f;
+        const float sz = std::min(grab_w, hi.x - lo.x - pad * 2.f);
+        const float t = count > 1 ? static_cast<float>(at) / static_cast<float>(count - 1) : 0.f;
+        const float cx = (lo.x + pad + sz * 0.5f) + (hi.x - pad - sz * 0.5f - (lo.x + pad + sz * 0.5f)) * t;
+        const ImVec2 a(cx - sz * 0.5f, lo.y + pad), b(cx + sz * 0.5f, hi.y - pad);
+        const float r = (b.y - a.y) * 0.5f;
+        const ImVec4 face = ImGui::GetStyleColorVec4(ImGuiCol_SliderGrab);
+        const bool held = ImGui::IsItemActive();
+        const auto shade = [&](float k, float alpha) {
+            return ImGui::ColorConvertFloat4ToU32(
+                ImVec4(std::min(1.f, face.x * k), std::min(1.f, face.y * k), std::min(1.f, face.z * k), alpha));
+        };
+        paint->AddRectFilled(ImVec2(a.x, a.y + 2.f), ImVec2(b.x, b.y + 2.f), IM_COL32(0, 0, 0, 70), r); // shadow
+        paint->AddRectFilled(a, b, shade(held ? 1.15f : 0.95f, 1.f), r);                               // face
+        paint->AddRectFilled(a, ImVec2(b.x, a.y + (b.y - a.y) * 0.5f), shade(held ? 1.4f : 1.2f, 0.55f), r,
+                             ImDrawFlags_RoundCornersTop); // lit from above
+        paint->AddLine(ImVec2(a.x + r, a.y + 1.f), ImVec2(b.x - r, a.y + 1.f), IM_COL32(255, 255, 255, 60), 1.f);
     }
     if (const int step = bw_menu_slider_nudge()) {
         const int moved = std::clamp(*index + step, 0, count - 1);
