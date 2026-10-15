@@ -12,23 +12,45 @@
 #include <string>
 #include "button_remap.h"
 
-// A dropdown with its label on the right, or above it when the window is too
-// narrow for both.
+inline int bw_menu_slider_nudge(); // below: a controller's left and right on a slider
+
+// One setting's choices, with no dropdown: see bw_menu_combo's comment.
 inline bool bw_menu_combo(const char* label, int* index, const char* const* items, int count) {
-    // Its name above it, as the sliders: one left edge down the tab. Four
-    // choices or fewer are all shown, so nothing is hidden behind a click;
-    // longer lists stay a dropdown, which would otherwise fill the tab.
+    // Its name above it, as the sliders: one left edge down the tab. Nothing
+    // is hidden behind a click: choices that fit sit side by side, four or
+    // fewer that don't are stacked, and a longer list becomes a slider with a
+    // step for each, the chosen one written across it.
     ImGui::PushID(label);
     ImGui::TextWrapped("%s", label);
+    const ImGuiStyle& style = ImGui::GetStyle();
+    float need = 0.f;
+    for (int i = 0; i < count; ++i)
+        need += ImGui::CalcTextSize(items[i]).x + ImGui::GetFrameHeight() + style.ItemInnerSpacing.x +
+                style.ItemSpacing.x;
     bool changed = false;
-    if (count <= 4) {
+    if (need <= ImGui::GetContentRegionAvail().x || count <= 4) {
+        const bool side_by_side = need <= ImGui::GetContentRegionAvail().x;
         ImGui::Indent();
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < count; ++i) {
+            if (side_by_side && i != 0)
+                ImGui::SameLine();
             changed = ImGui::RadioButton(items[i], index, i) || changed;
+        }
         ImGui::Unindent();
     } else {
+        std::string shown;
+        for (const char* c = items[std::clamp(*index, 0, count - 1)]; *c != '\0'; ++c) {
+            shown += *c;
+            if (*c == '%') // the chosen one is the slider's format: keep a per cent
+                shown += '%';
+        }
         ImGui::SetNextItemWidth(-1.f);
-        changed = ImGui::Combo("##value", index, items, count);
+        changed = ImGui::SliderInt("##value", index, 0, count - 1, shown.c_str(), ImGuiSliderFlags_NoInput);
+        if (const int step = bw_menu_slider_nudge()) {
+            const int moved = std::clamp(*index + step, 0, count - 1);
+            changed = changed || moved != *index;
+            *index = moved;
+        }
     }
     ImGui::PopID();
     return changed;
