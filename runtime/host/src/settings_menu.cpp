@@ -276,6 +276,19 @@ void close_menu() {
             set_env("BLUEWAKE_MENU_SIZE", text);
             g_dirty = true;
         }
+        // Its middle as a share of the game's window, so the place survives the
+        // window being resized between one open and the next.
+        const ImVec2 screen = ImGui::GetIO().DisplaySize;
+        if (screen.x > 1.f && screen.y > 1.f) {
+            char place[32];
+            std::snprintf(place, sizeof place, "%.4f,%.4f",
+                          std::clamp((window->Pos.x + window->Size.x * 0.5f) / screen.x, 0.f, 1.f),
+                          std::clamp((window->Pos.y + window->Size.y * 0.5f) / screen.y, 0.f, 1.f));
+            if (env("BLUEWAKE_MENU_PLACE") != place) {
+                set_env("BLUEWAKE_MENU_PLACE", place);
+                g_dirty = true;
+            }
+        }
     }
     save();
     std::fprintf(stderr, "[settings] menu closed\n");
@@ -1222,7 +1235,15 @@ void draw(void*) {
             close_menu();
         return;
     }
-    ImGui::SetNextWindowPos(ImVec2(display.x * 0.5f, display.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    // Where it was left, kept as its middle's place across the game's window
+    // rather than in pixels, so a window resized between one open and the next
+    // puts the menu back in the same part of the picture. The middle of the
+    // window when it has never been moved.
+    ImVec2 middle(0.5f, 0.5f);
+    if (float x = 0.f, y = 0.f; std::sscanf(env("BLUEWAKE_MENU_PLACE").c_str(), "%f,%f", &x, &y) == 2)
+        middle = ImVec2(std::clamp(x, 0.f, 1.f), std::clamp(y, 0.f, 1.f));
+    ImGui::SetNextWindowPos(ImVec2(display.x * middle.x, display.y * middle.y), ImGuiCond_Appearing,
+                            ImVec2(0.5f, 0.5f));
     // It opens at the size it was left at, or over the game's own 4:3 picture:
     // on a widened window a column down the middle rather than a narrow box,
     // and on a 4:3 one nearly all of it, with room left at the top and bottom.
