@@ -464,14 +464,27 @@ struct Choices {
     int count;
 };
 
-const char* const kScaleShown[] = {"The window's pixels", "1x (480 lines)", "2x (960)", "3x (1440)", "4x (1920)"};
 const char* const kScaleStored[] = {"0", "1", "2", "3", "4"};
 const char* const kAnisoShown[] = {"Off (the game's)", "2x", "4x", "8x", "16x"};
 const char* const kAnisoStored[] = {"1", "2", "4", "8", "16"};
 
 bool choices_for(const char* key, Choices* out) {
     if (std::strcmp(key, "DOL_AURORA_RENDER_SCALE") == 0) {
-        *out = {kScaleShown, kScaleStored, 5};
+        // Named by what the game draws: 480 lines for each step, and the width
+        // the chosen shape makes of them, so 21:9 doesn't claim 640 across.
+        static std::string text[5];
+        static const char* shown[5];
+        float wide = 4.f / 3.f;
+        if (int w = 0, h = 0; std::sscanf(g_aspect.c_str(), "%d:%d", &w, &h) == 2 && w > 0 && h > 0)
+            wide = static_cast<float>(w) / static_cast<float>(h);
+        text[0] = "Window";
+        shown[0] = text[0].c_str();
+        for (int i = 1; i < 5; ++i) {
+            const int lines = 480 * i;
+            text[i] = std::to_string(static_cast<int>(std::lround(lines * wide))) + "x" + std::to_string(lines);
+            shown[i] = text[i].c_str();
+        }
+        *out = {shown, kScaleStored, 5};
         return true;
     }
     if (std::strcmp(key, "DOL_AURORA_FORCE_ANISO") == 0) {
