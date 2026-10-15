@@ -590,10 +590,8 @@ bool draw_custom(const bw_settings::Setting& s) {
     if (std::strcmp(s.key, "BLUEWAKE_GYRO_AIM_SPEED") == 0) {
         // The slider, and under it what the right stick does, which depends on
         // the direct camera above rather than on this setting.
-        ImGui::BeginDisabled(!env_on("BLUEWAKE_GYRO_AIM", false));
-        if (setting_slider(s.key, s.shown, s.stored))
+        if (env_on("BLUEWAKE_GYRO_AIM", false) && setting_slider(s.key, s.shown, s.stored))
             bluewake_mouse_camera_reload();
-        ImGui::EndDisabled();
         ImGui::PushTextWrapPos();
         ImGui::TextDisabled(env_on("BLUEWAKE_STICK_CAMERA", true)
                                 ? "Click the right stick for first person. When controller zoom is on, hold it and "
@@ -614,14 +612,18 @@ bool draw_custom(const bw_settings::Setting& s) {
             set_env(s.key, haptics == 0 ? "off" : haptics == 1 ? "classic" : "enhanced");
             bluewake_haptics_reload();
         }
-        ImGui::BeginDisabled(haptics != 2);
-        float strength =
-            static_cast<float>(std::clamp(std::atoi(env("BLUEWAKE_HAPTICS_STRENGTH", "80").c_str()), 0, 100));
-        if (slider(setting("BLUEWAKE_HAPTICS_STRENGTH").label, &strength, 0.f, 100.f, "%.0f%%")) {
-            set_env("BLUEWAKE_HAPTICS_STRENGTH", std::to_string(static_cast<int>(std::lround(strength))));
-            bluewake_haptics_reload();
-            bluewake_haptics_preview();
+        // Only the shaped kind has a strength and uses the triggers: with the
+        // others its slider is left out, and the switch stays, greyed.
+        if (haptics == 2) {
+            float strength =
+                static_cast<float>(std::clamp(std::atoi(env("BLUEWAKE_HAPTICS_STRENGTH", "80").c_str()), 0, 100));
+            if (slider(setting("BLUEWAKE_HAPTICS_STRENGTH").label, &strength, 0.f, 100.f, "%.0f%%")) {
+                set_env("BLUEWAKE_HAPTICS_STRENGTH", std::to_string(static_cast<int>(std::lround(strength))));
+                bluewake_haptics_reload();
+                bluewake_haptics_preview();
+            }
         }
+        ImGui::BeginDisabled(haptics != 2);
         bool triggers;
         if (setting_checkbox("BLUEWAKE_HAPTICS_TRIGGERS", &triggers))
             bluewake_haptics_reload();
@@ -731,10 +733,9 @@ bool draw_custom(const bw_settings::Setting& s) {
         };
         if (bw_menu_checkbox(s.label, &extras))
             apply_sprint();
-        ImGui::BeginDisabled(!extras);
-        if (slider(setting("BLUEWAKE_SPRINT_CHOICE").label, &choice, 1.1f, 2.f, "%.2fx"))
+        // The speed only matters while sprinting is on: left out otherwise.
+        if (extras && slider(setting("BLUEWAKE_SPRINT_CHOICE").label, &choice, 1.1f, 2.f, "%.2fx"))
             apply_sprint();
-        ImGui::EndDisabled();
         return true;
     }
     if (std::strcmp(s.key, "DOL_AURORA_ASPECT_FIT") == 0) {
@@ -773,6 +774,10 @@ void draw_setting(const bw_settings::Setting& s) {
     // Dead while another setting speaks for it: the A/B, X/Y and L/R swaps once
     // the buttons have been remapped, which says where every button goes.
     const bool dead = s.dead_when != nullptr && !env(s.dead_when).empty();
+    // A slider nobody can move is left out rather than greyed: it says nothing
+    // the setting above it hasn't already said, and it costs a row.
+    if (!enabled && s.control == bw_settings::Control::Slider)
+        return;
     ImGui::BeginDisabled(!enabled || dead);
     bool changed = false;
     std::string value;

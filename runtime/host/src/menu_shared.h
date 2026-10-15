@@ -15,12 +15,21 @@
 // A dropdown with its label on the right, or above it when the window is too
 // narrow for both.
 inline bool bw_menu_combo(const char* label, int* index, const char* const* items, int count) {
-    // Its name above it and the list the full width, as the sliders: one left
-    // edge down the tab, and the chosen option never crowds the name.
+    // Its name above it, as the sliders: one left edge down the tab. Four
+    // choices or fewer are all shown, so nothing is hidden behind a click;
+    // longer lists stay a dropdown, which would otherwise fill the tab.
     ImGui::PushID(label);
     ImGui::TextWrapped("%s", label);
-    ImGui::SetNextItemWidth(-1.f);
-    const bool changed = ImGui::Combo("##value", index, items, count);
+    bool changed = false;
+    if (count <= 4) {
+        ImGui::Indent();
+        for (int i = 0; i < count; ++i)
+            changed = ImGui::RadioButton(items[i], index, i) || changed;
+        ImGui::Unindent();
+    } else {
+        ImGui::SetNextItemWidth(-1.f);
+        changed = ImGui::Combo("##value", index, items, count);
+    }
     ImGui::PopID();
     return changed;
 }
