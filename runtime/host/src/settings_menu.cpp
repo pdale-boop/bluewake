@@ -623,11 +623,11 @@ bool draw_custom(const bw_settings::Setting& s) {
                 bluewake_haptics_preview();
             }
         }
-        ImGui::BeginDisabled(haptics != 2);
-        bool triggers;
-        if (setting_checkbox("BLUEWAKE_HAPTICS_TRIGGERS", &triggers))
-            bluewake_haptics_reload();
-        ImGui::EndDisabled();
+        if (haptics == 2) {
+            bool triggers;
+            if (setting_checkbox("BLUEWAKE_HAPTICS_TRIGGERS", &triggers))
+                bluewake_haptics_reload();
+        }
         ImGui::TextDisabled(haptics == 2 ? "Hits, falls, explosions and quakes as the game times them, shaped by "
                                            "their strength."
                             : haptics == 1 ? "The motor on and off, as a GameCube controller's."
@@ -689,11 +689,11 @@ bool draw_custom(const bw_settings::Setting& s) {
         return true;
     }
     if (std::strcmp(s.key, "BLUEWAKE_DSP_MODE") == 0) {
-        // Two ways to make the sound, as a pair of choices rather than a switch.
+        // Two ways to make the sound, drawn like every other list of choices.
+        static const char* const kSound[] = {"Fast (Dolphin's high-level Zelda sound)",
+                                             "Exact (the sound chip's own program; slower)"};
         int exact = env(s.key, s.fallback) == "lle" ? 1 : 0;
-        bool picked = ImGui::RadioButton("Fast (Dolphin's high-level Zelda sound)", &exact, 0);
-        picked |= ImGui::RadioButton("Exact (the sound chip's own program; slower)", &exact, 1);
-        if (picked) {
+        if (bw_menu_combo("How the sound is made", &exact, kSound, 2)) {
             set_env(s.key, exact ? "lle" : "hle");
             g_dirty = g_restart_pending = true;
         }
@@ -774,11 +774,10 @@ void draw_setting(const bw_settings::Setting& s) {
     // Dead while another setting speaks for it: the A/B, X/Y and L/R swaps once
     // the buttons have been remapped, which says where every button goes.
     const bool dead = s.dead_when != nullptr && !env(s.dead_when).empty();
-    // A slider nobody can move is left out rather than greyed: it says nothing
-    // the setting above it hasn't already said, and it costs a row.
-    if (!enabled && s.control == bw_settings::Control::Slider)
+    // A setting nobody can change is left out, its note with it, rather than
+    // greyed: the switch above it already says why it isn't there.
+    if (!enabled || dead)
         return;
-    ImGui::BeginDisabled(!enabled || dead);
     bool changed = false;
     std::string value;
     switch (s.control) {
