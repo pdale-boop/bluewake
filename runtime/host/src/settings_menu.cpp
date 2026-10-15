@@ -814,7 +814,6 @@ void draw_setting(const bw_settings::Setting& s) {
         restart_note();
     if (s.note != nullptr)
         ImGui::TextDisabled("%s", s.note);
-    ImGui::EndDisabled();
     if (!changed)
         return;
     apply_now(s.key, value);
