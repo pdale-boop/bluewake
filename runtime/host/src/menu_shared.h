@@ -21,14 +21,26 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     // controller nudges left and right like any other slider.
     ImGui::PushID(label);
     ImGui::TextWrapped("%s", label);
-    std::string shown;
-    for (const char* c = items[std::clamp(*index, 0, count - 1)]; *c != '\0'; ++c) {
-        shown += *c;
-        if (*c == '%') // the chosen one is the slider's format: keep a per cent
-            shown += '%';
+    // Every choice named on one row, each over its own step, the chosen one
+    // bright and the rest quiet; the slider below moves between them.
+    const float width = ImGui::GetContentRegionAvail().x;
+    const float slot = count > 0 ? width / static_cast<float>(count) : width;
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList* list = ImGui::GetWindowDrawList();
+    const ImU32 chosen = ImGui::GetColorU32(ImGuiCol_Text);
+    const ImU32 other = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+    for (int i = 0; i < count; ++i) {
+        const float text = ImGui::CalcTextSize(items[i]).x;
+        const float left = origin.x + slot * static_cast<float>(i);
+        float x = left + (slot - text) * 0.5f;
+        x = std::clamp(x, origin.x, origin.x + width - text); // the ends stay inside
+        list->PushClipRect(ImVec2(left, origin.y), ImVec2(left + slot, origin.y + ImGui::GetTextLineHeight()), true);
+        list->AddText(ImVec2(x, origin.y), i == *index ? chosen : other, items[i]);
+        list->PopClipRect();
     }
+    ImGui::Dummy(ImVec2(width, ImGui::GetTextLineHeight()));
     ImGui::SetNextItemWidth(-1.f);
-    bool changed = ImGui::SliderInt("##value", index, 0, count - 1, shown.c_str(), ImGuiSliderFlags_NoInput);
+    bool changed = ImGui::SliderInt("##value", index, 0, count - 1, "", ImGuiSliderFlags_NoInput);
     if (const int step = bw_menu_slider_nudge()) {
         const int moved = std::clamp(*index + step, 0, count - 1);
         changed = changed || moved != *index;
