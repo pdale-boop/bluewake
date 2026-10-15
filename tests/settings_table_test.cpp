@@ -28,7 +28,8 @@ static const char* const kFileOrder[] = {
     "BLUEWAKE_HAPTICS_TRIGGERS", "BLUEWAKE_SPRINT_SPEED", "BLUEWAKE_CLIMB", "BLUEWAKE_CLIMB_STAMINA",
     "BLUEWAKE_FOREST_WATER_KEEP_TREES", "BLUEWAKE_FOREST_WATER_30_MINUTES", "BLUEWAKE_STAGE_SELECT_TOGGLE",
     "DOL_AURORA_ASPECT_FIT", "BLUEWAKE_PAUSE_UNFOCUSED", "BLUEWAKE_SHADERS_FIRST", "BLUEWAKE_SPRINT_CHOICE",
-    "BLUEWAKE_DSP_MODE", "BLUEWAKE_MENU_PAUSES", "BLUEWAKE_TEXTURE_PACK_FOLDER", "DOL_AURORA_WINDOW", "BLUEWAKE_WINDOW_POSITION",
+    "BLUEWAKE_DSP_MODE", "BLUEWAKE_MENU_PAUSES", "BLUEWAKE_MENU_CONTRAST", "BLUEWAKE_MENU_PLACE",
+    "BLUEWAKE_MENU_SIZE", "BLUEWAKE_TEXTURE_PACK_FOLDER", "DOL_AURORA_WINDOW", "BLUEWAKE_WINDOW_POSITION",
 };
 
 // Each platform's rules, as the menus had them in code before the table held
@@ -42,7 +43,8 @@ static const char* const kWindowsOnlyNextLaunch[] = {"BLUEWAKE_FAST_FORWARD", "B
                                                      "BLUEWAKE_JUMP_BUTTON", "BLUEWAKE_SPRINT_SPEED"};
 static const char* const kFilledEverywhere[] = {"BLUEWAKE_DSP_MODE", "BLUEWAKE_JUMP_BUTTON", "BLUEWAKE_SPRINT_SPEED"};
 static const char* const kWindowsOnly[] = {"DOL_AURORA_WINDOW", "BLUEWAKE_WINDOW_POSITION"};
-static const char* const kNotFilled[] = {"DOL_AURORA_FORCE_ANISO", "BLUEWAKE_TEXTURE_PACK_FOLDER",
+static const char* const kNotFilled[] = {"DOL_AURORA_FORCE_ANISO", "BLUEWAKE_MENU_PLACE",
+                                         "BLUEWAKE_MENU_SIZE", "BLUEWAKE_TEXTURE_PACK_FOLDER",
                                          "DOL_AURORA_WINDOW", "BLUEWAKE_WINDOW_POSITION"};
 
 template <size_t N> static bool listed(const char* const (&list)[N], const char* key) {

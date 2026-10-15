@@ -72,8 +72,9 @@ inline bool draw_slider(const bw_settings::Setting& s) {
 inline void draw_control(const bw_settings::Setting& s);
 
 // One row: the control the table asks for, its next-launch note and its quiet
-// line. A setting nobody can change right now is drawn greyed, as both menus
-// have always drawn it.
+// line. A setting nobody can change right now is drawn greyed, so the tab
+// keeps its shape and the setting can be found; hovering it says what turns
+// it on (or what it is off for).
 inline void draw_setting(const bw_settings::Setting& s) {
     if (s.control == bw_settings::Control::None)
         return;
@@ -83,9 +84,17 @@ inline void draw_setting(const bw_settings::Setting& s) {
     const bool overridden = s.dead_when != nullptr && !get(s.dead_when, "").empty();
     if (s.group != nullptr)
         s.group[0] == '\0' ? ImGui::Separator() : ImGui::SeparatorText(s.group);
+    ImGui::BeginGroup();
     ImGui::BeginDisabled(waiting || overridden);
     draw_control(s);
     ImGui::EndDisabled();
+    ImGui::EndGroup();
+    if ((waiting || overridden) && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        if (waiting)
+            ImGui::SetTooltip("Turn on \"%s\" to change this.", setting(s.needs).label);
+        else
+            ImGui::SetTooltip("Off while \"%s\" is set.", setting(s.dead_when).label);
+    }
 }
 
 // The row's control itself, its note and what a change does.

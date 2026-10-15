@@ -25,7 +25,7 @@ enum class Kind { Bool, Int, Float, Choice, Text };
 // rate, the texture pack, the remaps, Better Wind Waker's options, the
 // keyboard and controller tables); None is not drawn on its own at all.
 enum class Control { None, Switch, Slider, Chooser, Custom };
-enum class Tab { Display, Gameplay, Mods, Controls, SoundFiles };
+enum class Tab { Display, Gameplay, Mods, Controls, Config };
 
 // A set of platforms, a bit each.
 enum class Os : unsigned { None = 0, Windows = 1, Linux = 2, Mac = 4, All = 7 };
@@ -211,14 +211,24 @@ inline constexpr Setting kSettings[] = {
      .low = 1.1f, .high = 2.f, .label = "Sprint speed", .tab = Tab::Gameplay, .needs = "BLUEWAKE_JUMP_BUTTON",
      .shown = "%.2fx", .stored = "%.2f"},
     {.key = "BLUEWAKE_DSP_MODE", .old_windows = "lle_audio", .kind = Kind::Choice, .fallback = "hle",
-     .tab = Tab::SoundFiles, .control = Control::Custom, .group = "Sound", .next_launch = Os::All,
+     .tab = Tab::Config, .control = Control::Custom, .group = "Sound", .next_launch = Os::All,
      .fill = Os::All},
     // The game waits while the menu is open, or runs on with its input kept from
     // it. Off on Windows until a paused game is checked there: its picture behind
     // the menu needs RecompCore's held-frame fix (fix/held-frame-black).
     {.key = "BLUEWAKE_MENU_PAUSES", .kind = Kind::Bool, .on = Os::Linux | Os::Mac,
-     .label = "Pause the game while the menu is open", .tab = Tab::SoundFiles, .control = Control::Switch,
+     .label = "Pause the game while the menu is open", .tab = Tab::Config, .control = Control::Switch,
      .group = "The menu"},
+    // How far the menu's panels, outlines and quiet text stand off its background
+    // (desktop_theme.h, read every frame). Its own range, as it is the menu's.
+    {.key = "BLUEWAKE_MENU_CONTRAST", .kind = Kind::Float, .fallback = "1.0", .low = 0.6f, .high = 1.8f,
+     .label = "Menu contrast", .tab = Tab::Config, .control = Control::Slider,
+     .note = "How far this menu's panels, outlines and quiet text stand off its background. It changes as you move it.",
+     .shown = "%.2fx", .stored = "%.2f"},
+    // Not drawn: where in the game's window the menu was left (its middle, as a
+    // share of the window) and the size it was left at, so it opens that way.
+    {.key = "BLUEWAKE_MENU_PLACE", .tab = Tab::Config, .fill = Os::None},
+    {.key = "BLUEWAKE_MENU_SIZE", .tab = Tab::Config, .fill = Os::None},
     // Not drawn: the texture pack's folder while HD textures are off, so they come back to it.
     {.key = "BLUEWAKE_TEXTURE_PACK_FOLDER", .tab = Tab::Mods, .fill = Os::None},
     // Windows only, not drawn: the window's size and place as the player left them, checked at launch.

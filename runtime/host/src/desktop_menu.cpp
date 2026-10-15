@@ -69,6 +69,7 @@ namespace bw_desktop {
 namespace {
 
 bool g_open = false;
+float g_menu_scale = 1.f;  // the menu's scale as last drawn, for the size it is left at
 // Whether the game waits while the menu is open (BLUEWAKE_MENU_PAUSES), read
 // at the first frame and when the player changes it.
 bool g_menu_pauses = false;
@@ -372,6 +373,9 @@ bool draw_custom(const bw_settings::Setting& s) {
         return true;
     }
     if (std::strcmp(s.key, "BLUEWAKE_BUTTON_MAP") == 0) {
+        // The swaps above are greyed while a layout is set: say why where it is set.
+        if (!env(s.key).empty())
+            ImGui::TextDisabled("Swap A and B and Swap X and Y are off while you use a custom layout.");
         if (!ImGui::CollapsingHeader(s.label))
             return true;
         ImGui::TextWrapped("Choose which controller button presses each GameCube button. Picking one that is "
@@ -643,10 +647,10 @@ void controls_tab() {
     ImGui::TextDisabled("Game controllers work as they are plugged in (Xbox, PlayStation, Switch Pro, ...).");
 }
 
-// Sound and files: the sound's engine (next launch), and where the saves,
-// settings and logs are.
-void sound_files_tab() {
-    bw_menu::draw_tab(bw_settings::Tab::SoundFiles);
+// Config: the sound's engine (next launch), this menu's own behaviour and
+// look, and where the saves, settings and logs are.
+void config_tab() {
+    bw_menu::draw_tab(bw_settings::Tab::Config);
     ImGui::Spacing();
     ImGui::SeparatorText("Your files");
     std::string folder = data_dir();
@@ -862,12 +866,29 @@ void draw_menu(const bw_platform::Look& look) {
         return;
     }
     // A size of its own rather than its contents', so each tab's body scrolls
-    // inside it and the footer stays put: it opens in the middle, and can be
-    // moved and resized, but only inside the game's window.
+    // inside it and the footer stays put. It can be moved and resized, but
+    // only inside the game's window.
     const ImVec2 display = io.DisplaySize;
     const float scale = look.scale;
-    ImGui::SetNextWindowPos(ImVec2(display.x * 0.5f, display.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(std::min(display.x - 24.f, 900.f * scale), std::min(display.y - 24.f, 720.f * scale)),
+    g_menu_scale = scale;
+    // Where it was left, kept as its middle's place across the game's window
+    // rather than in pixels, so a window resized between one open and the next
+    // puts the menu back in the same part of the picture. The middle of the
+    // window when it has never been moved.
+    ImVec2 middle(0.5f, 0.5f);
+    if (float x = 0.f, y = 0.f; std::sscanf(env("BLUEWAKE_MENU_PLACE").c_str(), "%f,%f", &x, &y) == 2)
+        middle = ImVec2(std::clamp(x, 0.f, 1.f), std::clamp(y, 0.f, 1.f));
+    ImGui::SetNextWindowPos(ImVec2(display.x * middle.x, display.y * middle.y), ImGuiCond_Appearing,
+                            ImVec2(0.5f, 0.5f));
+    // It opens at the size it was left at, or over the game's own 4:3 picture:
+    // on a widened window a column down the middle rather than a narrow box,
+    // and on a 4:3 one nearly all of it, with room left at the top and bottom.
+    const float four_by_three = std::min(display.x, display.y * 4.f / 3.f);
+    ImVec2 opening(std::max(440.f * scale, four_by_three - 24.f), std::max(310.f * scale, display.y - 72.f));
+    if (float w = 0.f, h = 0.f; std::sscanf(env("BLUEWAKE_MENU_SIZE").c_str(), "%fx%f", &w, &h) == 2 &&
+                                w >= 440.f * scale && h >= 310.f * scale)
+        opening = ImVec2(w, h);
+    ImGui::SetNextWindowSize(ImVec2(std::min(opening.x, display.x - 24.f), std::min(opening.y, display.y - 24.f)),
                              ImGuiCond_Appearing);
     // Resizing stays between a size that still holds the tabs, hint and buttons
     // and the edges of the game's window, less a margin, from where the menu is.
@@ -923,7 +944,7 @@ void draw_menu(const bw_platform::Look& look) {
                                     {"Gameplay", gameplay_tab},
                                     {"Mods", mods_tab},
                                     {"Controls", controls_tab},
-                                    {"Sound and files", sound_files_tab}};
+                                    {"Config", config_tab}};
         constexpr int kTabCount = static_cast<int>(sizeof kTabs / sizeof kTabs[0]);
         static int shown = 0;
         int request = -1;
@@ -933,10 +954,33 @@ void draw_menu(const bw_platform::Look& look) {
         // when there is one, and the buttons on one row or, if narrow, two.
         const bool restart = needs_restart();
         const float footer = bw_menu_footer_height(restart);
-        if (ImGui::BeginTabBar("##tabs")) {
-            // No title bar, so the mouse's close button sits at the end of the tabs.
-            if (ImGui::TabItemButton("x", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip))
+        // The window has no title bar, so closing with the mouse is a round
+        // button in its corner, above the tabs: a tab that is not a tab reads
+        // as a sixth page you cannot open.
+        {
+            const ImVec2 corner = ImGui::GetCursorScreenPos();
+            const float size = ImGui::GetFrameHeight() * 0.9f;
+            const float right = corner.x + ImGui::GetContentRegionAvail().x - size;
+            ImGui::SetCursorScreenPos(ImVec2(right, corner.y));
+            ImGui::InvisibleButton("##close", ImVec2(size, size));
+            // Shown for the pointer and for a pad or the keyboard landing on it.
+            const bool over = ImGui::IsItemHovered() || ImGui::IsItemFocused();
+            if (ImGui::IsItemActivated())
                 open = false;
+            const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+            const ImVec2 mid((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+            ImDrawList* paint = ImGui::GetWindowDrawList();
+            if (over) {  // the whole button lights up, not an outline of it
+                paint->AddCircleFilled(mid, size * 0.5f, ImGui::GetColorU32(ImGuiCol_HeaderHovered));
+                paint->AddCircle(mid, size * 0.5f, ImGui::GetColorU32(ImGuiCol_SliderGrab, 0.85f), 0, 1.f);
+            }
+            const float arm = size * 0.22f;
+            const ImU32 ink = ImGui::GetColorU32(over ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+            paint->AddLine(ImVec2(mid.x - arm, mid.y - arm), ImVec2(mid.x + arm, mid.y + arm), ink, 1.6f);
+            paint->AddLine(ImVec2(mid.x - arm, mid.y + arm), ImVec2(mid.x + arm, mid.y - arm), ink, 1.6f);
+            ImGui::SetCursorScreenPos(corner);
+        }
+        if (ImGui::BeginTabBar("##tabs")) {
             for (int i = 0; i < kTabCount; ++i) {
                 if (!ImGui::BeginTabItem(kTabs[i].label, nullptr, i == request ? ImGuiTabItemFlags_SetSelected : 0))
                     continue;
@@ -944,9 +988,18 @@ void draw_menu(const bw_platform::Look& look) {
                 ImGui::PushID(i);
                 ImGui::BeginChild("##body", ImVec2(0, -footer), ImGuiChildFlags_NavFlattened);
                 ImGui::PushTextWrapPos(0.f); // text wraps at the menu's edge
+                // A shoulder button changed the tab: the cursor goes to this
+                // tab's first setting, every time. Left to itself it landed on
+                // the header or the footer, differently each time.
+                if (i == request)
+                    ImGui::SetKeyboardFocusHere();
                 kTabs[i].draw();
                 ImGui::PopTextWrapPos();
                 bw_menu_stick_scroll(pad.scroll);
+                // Down from the last setting comes back to the first, and up
+                // from the first to the last, so a pad never stops dead at an
+                // end of a long tab.
+                ImGui::NavMoveRequestTryWrapping(ImGui::GetCurrentWindow(), ImGuiNavMoveFlags_LoopY);
                 ImGui::EndChild();
                 ImGui::PopID();
                 ImGui::EndTabItem();
@@ -1072,6 +1125,26 @@ void close_menu() {
     bluewake_haptics_block(false);
     bw_platform::menu_opened(false);
     bluewake_pad_hold_until_released();
+    // The size and place the player left it at, so it opens that way next time
+    // and after a restart; the opening size is only for a menu never resized.
+    // The place is its middle as a share of the game's window, so it survives
+    // the window being resized between one open and the next.
+    if (const ImGuiWindow* window = ImGui::FindWindowByName("BlueWake settings");
+        window != nullptr && window->Size.x >= 440.f * g_menu_scale && window->Size.y >= 310.f * g_menu_scale) {
+        char size[32];
+        std::snprintf(size, sizeof size, "%.0fx%.0f", window->Size.x, window->Size.y);
+        if (env("BLUEWAKE_MENU_SIZE") != size)
+            set_env("BLUEWAKE_MENU_SIZE", size);
+        const ImVec2 screen = ImGui::GetIO().DisplaySize;
+        if (screen.x > 1.f && screen.y > 1.f) {
+            char place[32];
+            std::snprintf(place, sizeof place, "%.4f,%.4f",
+                          std::clamp((window->Pos.x + window->Size.x * 0.5f) / screen.x, 0.f, 1.f),
+                          std::clamp((window->Pos.y + window->Size.y * 0.5f) / screen.y, 0.f, 1.f));
+            if (env("BLUEWAKE_MENU_PLACE") != place)
+                set_env("BLUEWAKE_MENU_PLACE", place);
+        }
+    }
     save();
     std::fprintf(stderr, "[settings] menu closed\n");
 }
