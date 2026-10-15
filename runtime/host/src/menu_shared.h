@@ -45,8 +45,30 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     } else {
         ImGui::TextUnformatted(items[at]);
     }
+    // A chooser, not a scrubber: the handle covers the step it is on, rounded
+    // and quieter than ImGui's default, over a track notched once per step.
+    const ImVec4 grab = ImGui::GetStyleColorVec4(ImGuiCol_SliderGrab);
+    const ImVec4 active = ImGui::GetStyleColorVec4(ImGuiCol_SliderGrabActive);
+    ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(grab.x, grab.y, grab.z, grab.w * 0.55f));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(active.x, active.y, active.z, active.w * 0.8f));
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, std::max(14.f, slot * 0.9f));
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, ImGui::GetStyle().FrameRounding + 2.f);
     ImGui::SetNextItemWidth(-1.f);
     bool changed = ImGui::SliderInt("##value", index, 0, count - 1, "", ImGuiSliderFlags_NoInput);
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+    if (count > 1) {
+        // One notch per step, on the track, quiet enough to read as a scale.
+        const ImVec2 lo = ImGui::GetItemRectMin(), hi = ImGui::GetItemRectMax();
+        ImDrawList* notches = ImGui::GetWindowDrawList();
+        const ImU32 tint = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.5f);
+        const float inset = std::max(7.f, slot * 0.45f);
+        for (int i = 0; i < count; ++i) {
+            const float t = static_cast<float>(i) / static_cast<float>(count - 1);
+            const float x = lo.x + inset + (hi.x - lo.x - inset * 2.f) * t;
+            notches->AddLine(ImVec2(x, hi.y - 3.f), ImVec2(x, hi.y - 1.f), tint, 1.f);
+        }
+    }
     if (const int step = bw_menu_slider_nudge()) {
         const int moved = std::clamp(*index + step, 0, count - 1);
         changed = changed || moved != *index;
