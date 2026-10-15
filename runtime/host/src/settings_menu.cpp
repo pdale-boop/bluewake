@@ -1013,10 +1013,10 @@ void open_folder(const std::string& path) {
         std::fprintf(stderr, "[settings] could not open %s: %s\n", path.c_str(), SDL_GetError());
 }
 
-// Sound and files, as on Windows: the sound's engine (next launch), and where
+// Config: the sound's engine (next launch), this menu's own look, and where
 // the saves, settings and logs are.
-void sound_files_tab() {
-    draw_tab(bw_settings::Tab::SoundFiles);
+void config_tab() {
+    draw_tab(bw_settings::Tab::Config);
     ImGui::Spacing();
     // Not settings: where this build keeps what it writes.
     ImGui::SeparatorText("Your files");
@@ -1261,7 +1261,7 @@ void draw(void*) {
                                     {"Gameplay", "##gameplay-body", gameplay_tab},
                                     {"Mods", "##mods-body", mods_tab},
                                     {"Controls", "##controls-body", controls_tab},
-                                    {"Sound and files", "##sound-files-body", sound_files_tab}};
+                                    {"Config", "##config-body", config_tab}};
         constexpr int kTabCount = static_cast<int>(sizeof kTabs / sizeof kTabs[0]);
         static int shown = 0;
         int request = -1;
@@ -1270,10 +1270,30 @@ void draw(void*) {
         // The body takes what the footer leaves: the hint, the next-launch note
         // when there is one, and the buttons on one row or, if narrow, two.
         const float footer = bw_menu_footer_height(g_restart_pending);
-        if (ImGui::BeginTabBar("##tabs")) {
-            // The window has no title bar, so the close button for the mouse sits at the end of the tabs.
-            if (ImGui::TabItemButton("x", ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip))
+        // The window has no title bar, so closing with the mouse is a round
+        // button in its corner, above the tabs: a tab that is not a tab reads
+        // as a sixth page you cannot open.
+        {
+            const ImVec2 corner = ImGui::GetCursorScreenPos();
+            const float size = ImGui::GetFrameHeight() * 0.9f;
+            const float right = corner.x + ImGui::GetContentRegionAvail().x - size;
+            ImGui::SetCursorScreenPos(ImVec2(right, corner.y));
+            ImGui::InvisibleButton("##close", ImVec2(size, size));
+            const bool over = ImGui::IsItemHovered();
+            if (ImGui::IsItemActivated())
                 open = false;
+            const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+            const ImVec2 middle((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+            ImDrawList* paint = ImGui::GetWindowDrawList();
+            if (over)
+                paint->AddCircle(middle, size * 0.5f, ImGui::GetColorU32(ImGuiCol_SliderGrab, 0.85f), 0, 1.f);
+            const float arm = size * 0.22f;
+            const ImU32 ink = ImGui::GetColorU32(over ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+            paint->AddLine(ImVec2(middle.x - arm, middle.y - arm), ImVec2(middle.x + arm, middle.y + arm), ink, 1.6f);
+            paint->AddLine(ImVec2(middle.x - arm, middle.y + arm), ImVec2(middle.x + arm, middle.y - arm), ink, 1.6f);
+            ImGui::SetCursorScreenPos(corner);
+        }
+        if (ImGui::BeginTabBar("##tabs")) {
             for (int i = 0; i < kTabCount; ++i) {
                 if (!ImGui::BeginTabItem(kTabs[i].label, nullptr, i == request ? ImGuiTabItemFlags_SetSelected : 0))
                     continue;

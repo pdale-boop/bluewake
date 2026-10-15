@@ -40,18 +40,31 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     float widest = 0.f;
     for (int i = 0; i < count; ++i)
         widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
+    bool picked = false;
     if (widest <= slot - ImGui::GetStyle().ItemInnerSpacing.x * 2.f) {
+        // Each name is its own target: hovering outlines it, clicking takes it.
         const ImVec2 origin = ImGui::GetCursorScreenPos();
+        const float line = ImGui::GetTextLineHeight(), pad = ImGui::GetStyle().ItemInnerSpacing.x;
         ImDrawList* list = ImGui::GetWindowDrawList();
         const ImU32 chosen = ImGui::GetColorU32(ImGuiCol_Text);
         const ImU32 quiet = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+        const ImU32 outline = ImGui::GetColorU32(ImGuiCol_SliderGrab, 0.85f);
         for (int i = 0; i < count; ++i) {
             const float text = ImGui::CalcTextSize(items[i]).x;
-            const float x = step_x(origin.x, i) - text * 0.5f;
-            list->AddText(ImVec2(std::clamp(x, origin.x, origin.x + width - text), origin.y),
-                          i == at ? chosen : quiet, items[i]);
+            const float x = std::clamp(step_x(origin.x, i) - text * 0.5f, origin.x, origin.x + width - text);
+            const ImVec2 a(x - pad, origin.y - 1.f), b(x + text + pad, origin.y + line + 1.f);
+            ImGui::SetCursorScreenPos(a);
+            ImGui::InvisibleButton(items[i], ImVec2(b.x - a.x, b.y - a.y));
+            if (ImGui::IsItemHovered())
+                list->AddRect(a, b, outline, ImGui::GetStyle().FrameRounding * 0.75f, 0, 1.f);
+            if (ImGui::IsItemActivated()) {
+                *index = i;
+                picked = true;
+            }
+            list->AddText(ImVec2(x, origin.y), i == at || picked ? chosen : quiet, items[i]);
         }
-        ImGui::Dummy(ImVec2(width, ImGui::GetTextLineHeight()));
+        ImGui::SetCursorScreenPos(origin);
+        ImGui::Dummy(ImVec2(width, line));
     } else {
         ImGui::TextUnformatted(items[at]);
     }
@@ -70,11 +83,14 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     const ImVec2 lo = ImGui::GetItemRectMin(), hi = ImGui::GetItemRectMax();
     ImDrawList* paint = ImGui::GetWindowDrawList();
     const float round = ImGui::GetStyle().FrameRounding;
-    // The track as a groove: a dark edge under its top, a light one on its
-    // floor, so it reads as cut into the panel rather than drawn on it.
-    paint->AddLine(ImVec2(lo.x + round, lo.y + 1.f), ImVec2(hi.x - round, lo.y + 1.f), IM_COL32(0, 0, 0, 60), 1.f);
-    paint->AddLine(ImVec2(lo.x + round, hi.y - 1.f), ImVec2(hi.x - round, hi.y - 1.f), IM_COL32(255, 255, 255, 18),
-                   1.f);
+    // Structure behind the slot: the housing is the frame ImGui drew, and
+    // inside it a sunk channel the handle rides in, dark under its top edge
+    // and light along its floor so the handle sits in something.
+    const float mid = (lo.y + hi.y) * 0.5f, channel = std::max(4.f, (hi.y - lo.y) * 0.22f);
+    const ImVec2 c0(lo.x + round, mid - channel * 0.5f), c1(hi.x - round, mid + channel * 0.5f);
+    paint->AddRectFilled(c0, c1, IM_COL32(0, 0, 0, 90), channel * 0.5f);
+    paint->AddLine(ImVec2(c0.x, c0.y), ImVec2(c1.x, c0.y), IM_COL32(0, 0, 0, 110), 1.f);
+    paint->AddLine(ImVec2(c0.x, c1.y), ImVec2(c1.x, c1.y), IM_COL32(255, 255, 255, 26), 1.f);
     if (count > 1) {
         const ImU32 tint = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.45f);
         for (int i = 0; i < count; ++i)
@@ -105,6 +121,7 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
         changed = changed || moved != *index;
         *index = moved;
     }
+    changed = changed || picked; // a name clicked above the slider
     ImGui::PopID();
     return changed;
 }

@@ -18,7 +18,7 @@ enum class Kind { Bool, Int, Float, Choice, Text };
 // rate, the texture pack, the remaps, Better Wind Waker's options, the
 // keyboard and controller tables); None is not drawn on its own at all.
 enum class Control { None, Switch, Slider, Dropdown, Custom };
-enum class Tab { Display, Gameplay, Mods, Controls, SoundFiles };
+enum class Tab { Display, Gameplay, Mods, Controls, Config };
 
 struct Setting {
     const char* key;      // environment variable and settings file key
@@ -89,10 +89,11 @@ inline constexpr Setting kSettings[] = {
     {"BLUEWAKE_FOREST_WATER_30_MINUTES", "forest_water_30_minutes", Kind::Bool, "0", 0, 0, "30-minute Forest Water timer", Tab::Gameplay, false, Control::Switch, "Applies the next time you collect Forest Water. Both options are off by default.", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_STAGE_SELECT_TOGGLE", "stage_select", Kind::Bool, "0", 0, 0, "Developers' stage select (F7)", Tab::Gameplay, true, Control::Custom, "F7 during play opens the menu the developers used to jump to any room, from your own file; F7 in the menu goes back. On a controller, Back (View on Xbox, Share or Create on PlayStation) opens these settings and the button below does the same. Off by default.", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"DOL_AURORA_ASPECT_FIT", "keep_aspect", Kind::Bool, "0", 0, 0, "Keep the picture's shape (black bars rather than stretching)", Tab::Display, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"BLUEWAKE_MENU_CONTRAST", "menu_contrast", Kind::Float, "1.0", 0.6f, 1.8f, "Menu contrast", Tab::Config, false, Control::Slider, "How far this menu's panels, outlines and quiet text stand off its background. It changes as you move it.", nullptr, nullptr, "%.2fx", "%.2f", nullptr},
     {"BLUEWAKE_PAUSE_UNFOCUSED", "pause_unfocused", Kind::Bool, "0", 0, 0, "Pause while the window is in the background", Tab::Display, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_SHADERS_FIRST", "compile_shaders_first", Kind::Bool, "0", 0, 0, "Compile shaders before playing", Tab::Display, true, Control::Switch, "At start, wait until the shaders from earlier play are ready, so nothing is missing from the picture the first time it is drawn. Otherwise they are made while you play.", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_SPRINT_CHOICE", "sprint_speed", Kind::Float, "1.5", 1.1f, 2.f, "Sprint speed", Tab::Gameplay, false, Control::None, nullptr, "BLUEWAKE_JUMP_BUTTON", nullptr, "%.2fx", "%.2f", nullptr},
-    {"BLUEWAKE_DSP_MODE", "lle_audio", Kind::Choice, "hle", 0, 0, nullptr, Tab::SoundFiles, true, Control::Custom, nullptr, nullptr, "Sound", nullptr, nullptr, nullptr},
+    {"BLUEWAKE_DSP_MODE", "lle_audio", Kind::Choice, "hle", 0, 0, nullptr, Tab::Config, true, Control::Custom, nullptr, nullptr, "Sound", nullptr, nullptr, nullptr},
 };
 // clang-format on
 

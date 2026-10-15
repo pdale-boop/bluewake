@@ -1130,7 +1130,7 @@ void draw_menu(SDL_Window* w) {
         // The bumpers switch tabs. Each tab's body scrolls on its own but is
         // flattened for navigation, so the D-pad moves from the tabs through the
         // options to the buttons below without A to enter it and B to leave it.
-        static const char* const kTabs[] = {"Display", "Gameplay", "Mods", "Controls", "Sound and files"};
+        static const char* const kTabs[] = {"Display", "Gameplay", "Mods", "Controls", "Config"};
         constexpr int kTabCount = IM_ARRAYSIZE(kTabs);
         static int shown = 0;
         int request = -1;
