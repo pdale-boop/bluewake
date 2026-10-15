@@ -987,7 +987,9 @@ void controls_tab() {
                        "wheel zooms. Esc gives the mouse back, and Esc again opens this menu.");
     ImGui::SeparatorText("Controller");
     bw_controller_table();
-    ImGui::PopTextWrapPos();
+    // No PopTextWrapPos here: the wrap this used to close is now pushed and
+    // popped by gyro's row (draw_custom), and the body's own wrap is the tab
+    // bar's, closed where it was pushed.
 }
 
 // The folder in the system's file manager.
