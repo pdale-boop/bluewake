@@ -266,6 +266,17 @@ void close_menu() {
     }
     bluewake_haptics_block(false);
     bluewake_pad_hold_until_released();
+    // The size the player left it at, so it opens that way next time and after
+    // a restart; the 4:3 opening size is only for a menu never resized.
+    if (const ImGuiWindow* window = ImGui::FindWindowByName("BlueWake settings");
+        window != nullptr && window->Size.x >= 420.f && window->Size.y >= 300.f) {
+        char text[32];
+        std::snprintf(text, sizeof text, "%.0fx%.0f", window->Size.x, window->Size.y);
+        if (env("BLUEWAKE_MENU_SIZE") != text) {
+            set_env("BLUEWAKE_MENU_SIZE", text);
+            g_dirty = true;
+        }
+    }
     save();
     std::fprintf(stderr, "[settings] menu closed\n");
 }
@@ -1212,12 +1223,15 @@ void draw(void*) {
         return;
     }
     ImGui::SetNextWindowPos(ImVec2(display.x * 0.5f, display.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    // It opens over the game's own 4:3 picture, less a margin: on a widened
-    // window a column down the middle rather than a narrow box, and on a 4:3
-    // one nearly all of it.
+    // It opens at the size it was left at, or over the game's own 4:3 picture:
+    // on a widened window a column down the middle rather than a narrow box,
+    // and on a 4:3 one nearly all of it, with room left at the top and bottom.
     const float four_by_three = std::min(display.x, display.y * 4.f / 3.f);
-    ImGui::SetNextWindowSize(ImVec2(std::max(420.f, four_by_three - 24.f), std::max(300.f, display.y - 24.f)),
-                             ImGuiCond_Appearing);
+    ImVec2 opening(std::max(420.f, four_by_three - 24.f), std::max(300.f, display.y - 72.f));
+    if (float w = 0.f, h = 0.f;
+        std::sscanf(env("BLUEWAKE_MENU_SIZE").c_str(), "%fx%f", &w, &h) == 2 && w >= 420.f && h >= 300.f)
+        opening = ImVec2(std::min(w, display.x - 24.f), std::min(h, display.y - 24.f));
+    ImGui::SetNextWindowSize(opening, ImGuiCond_Appearing);
     // Resizing stays between a size that still holds the tabs, hint and buttons
     // and the edges of the game's window, less a margin, from where the menu is.
     const ImVec2 largest(std::max(1.f, display.x - 24.f), std::max(1.f, display.y - 24.f));
