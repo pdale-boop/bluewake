@@ -1303,6 +1303,11 @@ void draw(void*) {
                 shown = i;
                 ImGui::BeginChild(kTabs[i].body, ImVec2(0, -footer), ImGuiChildFlags_NavFlattened);
                 ImGui::PushTextWrapPos(0.f);
+                // A shoulder button changed the tab: the cursor goes to this
+                // tab's first setting, every time. Left to itself it landed on
+                // the header or the footer, differently each time.
+                if (i == request)
+                    ImGui::SetKeyboardFocusHere();
                 kTabs[i].draw();
                 ImGui::PopTextWrapPos();
                 bw_menu_stick_scroll(pad.scroll);
