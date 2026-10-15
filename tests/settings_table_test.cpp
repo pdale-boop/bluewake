@@ -68,7 +68,13 @@ int main() {
                 assert(value >= s.low && value <= s.high);
             }
         }
-        // Windows' own defaults, and only those, differ from the others'.
+        // A switch's default is where it is on: it has no other. Windows' own
+        // defaults, and only those, differ from Mac's and Linux's.
+        if (s.kind == Kind::Bool)
+            assert(s.fallback[0] == '\0');
+        else
+            assert(s.on == Os::None);
+        assert(std::strcmp(fallback_for(s, Os::Mac), fallback_for(s, Os::Linux)) == 0);
         bool own = false;
         for (const auto& pair : kWindowsOwnDefaults)
             if (std::strcmp(pair[0], s.key) == 0) {
@@ -76,7 +82,8 @@ int main() {
                 assert(std::strcmp(fallback_for(s, Os::Windows), pair[1]) == 0 &&
                        std::strcmp(fallback_for(s, Os::Mac), pair[1]) != 0);
             }
-        assert(own == (s.windows_fallback != nullptr));
+        if (!own)
+            assert(std::strcmp(fallback_for(s, Os::Windows), fallback_for(s, Os::Mac)) == 0);
         // The next launch: the same everywhere, but for Windows' four.
         const bool windows_only = listed(kWindowsOnlyNextLaunch, s.key);
         assert(next_launch_on(s, Os::Windows) == (next_launch_on(s, Os::Mac) || windows_only));
