@@ -1212,7 +1212,12 @@ void draw(void*) {
         return;
     }
     ImGui::SetNextWindowPos(ImVec2(display.x * 0.5f, display.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(std::min(display.x - 24.f, 860.f), display.y * 0.78f), ImGuiCond_Appearing);
+    // It opens over the game's own 4:3 picture, less a margin: on a widened
+    // window a column down the middle rather than a narrow box, and on a 4:3
+    // one nearly all of it.
+    const float four_by_three = std::min(display.x, display.y * 4.f / 3.f);
+    ImGui::SetNextWindowSize(ImVec2(std::max(420.f, four_by_three - 24.f), std::max(300.f, display.y - 24.f)),
+                             ImGuiCond_Appearing);
     // Resizing stays between a size that still holds the tabs, hint and buttons
     // and the edges of the game's window, less a margin, from where the menu is.
     const ImVec2 largest(std::max(1.f, display.x - 24.f), std::max(1.f, display.y - 24.f));
