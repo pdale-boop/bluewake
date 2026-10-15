@@ -262,6 +262,36 @@ bool needs_restart() {
 
 // --- the file ---------------------------------------------------------------
 
+namespace {
+// A switch that used to be two settings, read as one where the table says
+// (settings_table.h's joined and whole), as Windows always held them: Fast
+// transitions decides and its fades follow it; Jump & Sprint is on with either
+// half on, at the sprint speed chosen. A half the launch chose stays as it is.
+void read_joined() {
+    for (const bw_settings::Setting& s : bw_settings::kSettings) {
+        if (s.joined == nullptr || !bw_settings::includes(s.whole, bw_settings::kThisOs))
+            continue;
+        const bool launched_half = g_launch.count(s.joined) != 0;
+        if (std::strcmp(s.key, "BLUEWAKE_FAST_FORWARD") == 0) {
+            if (!launched_half)
+                put_env(s.joined, env_on(s.key, bw_settings::default_on(s)) ? "6" : "0");
+        } else if (std::strcmp(s.key, "BLUEWAKE_JUMP_BUTTON") == 0) {
+            const double speed = std::atof(env(s.joined, "1").c_str());
+            const bool on = env_on(s.key, bw_settings::default_on(s)) || speed > 1.01;
+            double choice = std::atof(env("BLUEWAKE_SPRINT_CHOICE", "0").c_str());
+            if (choice < 1.1 || choice > 2.0)
+                choice = speed > 1.01 && speed <= 2.0 ? std::max(speed, 1.1) : 1.5;
+            char text[16];
+            std::snprintf(text, sizeof text, "%.2f", choice);
+            if (g_launch.count(s.key) == 0)
+                put_env(s.key, on ? "1" : "0");
+            if (!launched_half)
+                put_env(s.joined, on ? text : "1");
+        }
+    }
+}
+}  // namespace
+
 void load(const std::string& path, const std::string& read_instead) {
     g_path = path;
     for (const bw_settings::Setting& s : bw_settings::kSettings)
@@ -294,6 +324,7 @@ void load(const std::string& path, const std::string& read_instead) {
             }
         }
     }
+    read_joined();
     if (!g_launch.empty()) {
         std::string names;
         for (const auto& [key, value] : g_launch)
