@@ -47,7 +47,8 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     }
     // A chooser, not a scrubber. ImGui keeps the behaviour but draws no handle:
     // ours is drawn below, lit from above, over a track notched once per step.
-    const float grab_w = std::max(14.f, slot * 0.9f);
+    // Narrow enough to point at a step rather than cover it.
+    const float grab_w = std::clamp(slot * 0.45f, 12.f, ImGui::GetFrameHeight() * 1.1f);
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, IM_COL32_BLACK_TRANS);
     ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, IM_COL32_BLACK_TRANS);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, grab_w);
