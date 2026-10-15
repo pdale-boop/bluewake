@@ -28,6 +28,8 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     return changed;
 }
 
+inline int bw_menu_slider_nudge();  // defined below, with the rest of the controller's keys
+
 // A slider with its name above it and the bar the full width, which a
 // controller nudges left and right a twentieth of its range at a time.
 inline bool bw_menu_slider(const char* label, float* value, float low, float high, const char* format) {
