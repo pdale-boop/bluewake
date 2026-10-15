@@ -16,29 +16,16 @@ inline int bw_menu_slider_nudge(); // below: a controller's left and right on a 
 
 // One setting's choices, with no dropdown: see bw_menu_combo's comment.
 inline bool bw_menu_combo(const char* label, int* index, const char* const* items, int count) {
-    // Its name above it, and a step for each choice with the chosen one written
-    // across it: the same control for every list, however long, which a
-    // controller nudges left and right like any other slider.
+    // The same control for every list, however long: the setting's name, the
+    // chosen one under it, and a slider with a step for each, which a
+    // controller nudges left and right like any other.
     ImGui::PushID(label);
     ImGui::TextWrapped("%s", label);
-    // Every choice named on one row, each over its own step, the chosen one
-    // bright and the rest quiet; the slider below moves between them.
-    const float width = ImGui::GetContentRegionAvail().x;
-    const float slot = count > 0 ? width / static_cast<float>(count) : width;
-    const ImVec2 origin = ImGui::GetCursorScreenPos();
-    ImDrawList* list = ImGui::GetWindowDrawList();
-    const ImU32 chosen = ImGui::GetColorU32(ImGuiCol_Text);
-    const ImU32 other = ImGui::GetColorU32(ImGuiCol_TextDisabled);
-    for (int i = 0; i < count; ++i) {
-        const float text = ImGui::CalcTextSize(items[i]).x;
-        const float left = origin.x + slot * static_cast<float>(i);
-        float x = left + (slot - text) * 0.5f;
-        x = std::clamp(x, origin.x, origin.x + width - text); // the ends stay inside
-        list->PushClipRect(ImVec2(left, origin.y), ImVec2(left + slot, origin.y + ImGui::GetTextLineHeight()), true);
-        list->AddText(ImVec2(x, origin.y), i == *index ? chosen : other, items[i]);
-        list->PopClipRect();
-    }
-    ImGui::Dummy(ImVec2(width, ImGui::GetTextLineHeight()));
+    // The chosen one, written in the same place whichever it is: under the
+    // setting's name and above the slider, so only the words change as the
+    // slider moves, not where to look for them.
+    const int at = std::clamp(*index, 0, count > 0 ? count - 1 : 0);
+    ImGui::TextUnformatted(items[at]);
     ImGui::SetNextItemWidth(-1.f);
     bool changed = ImGui::SliderInt("##value", index, 0, count - 1, "", ImGuiSliderFlags_NoInput);
     if (const int step = bw_menu_slider_nudge()) {
