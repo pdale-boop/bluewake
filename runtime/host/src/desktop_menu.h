@@ -46,6 +46,9 @@ void load(const std::string& path, const std::string& read_instead = "");
 // (BLUEWAKE_STAGE_SELECT=1 arms the stage select's toggle); the file keeps
 // its own value.
 void launch_choice(const char* key, const std::string& value);
+// The defaults this platform puts in the environment at launch (the table's
+// fill), so the game reads them rather than its own. After safe mode.
+void fill_defaults();
 // Safe mode (a launch that never got to a clean exit, or --safe-mode): the
 // file is copied aside, then this session and the file get the safe choices.
 void apply_safe_mode();
@@ -100,9 +103,6 @@ void menu_opened(bool open);
 // Whether the game waits while the menu is open (Mac and Linux), or runs on
 // with its input kept from it (Windows).
 bool pauses_game();
-// A setting this platform takes at the next launch although the table does
-// not: Windows' Fast transitions, Quick doors and Jump & Sprint.
-bool waits_for_launch(const char* key);
 // The folder HD textures turn on with when none was chosen before; "" opens
 // the folder picker instead.
 std::string default_pack_folder();
@@ -111,10 +111,6 @@ void reset_window();
 // Restart now: false where the app cannot start itself again (the Mac app).
 bool can_restart();
 void restart();
-// A line of the settings file this platform keeps for itself (the window's
-// size and place on Windows): true when it took it.
-bool read_line(const std::string& key, const std::string& value);
-void write_lines(std::FILE* file);
 // A settings file in an older format of this platform's, turned into the
 // shared lines: true when `lines` were converted (the old file is copied aside
 // first, then written in the new format).

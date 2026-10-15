@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Every desktop setting once: the host's environment name (what the game
-// reads, and the settings file's key), the name the Windows settings file used
-// before the menus were one, its kind, its default, its range, its label and
-// tab, and whether it takes effect at the next launch. The order is the
-// settings file's. The menus draw their plain switches and sliders from it;
-// settings with their own controls (Smooth Motion's rate, Jump & Sprint, the
-// texture pack, the remaps, Better Wind Waker's options) only take their
-// names and defaults from it. No ImGui here, so the host tests can read it.
+// Every desktop setting once, and everything a platform does differently with
+// it. Each row is the host's environment name (what the game reads, and the
+// settings file's key), the key the old Windows settings file used, its kind,
+// its default, its range, its label and tab, how the menu draws it, and three
+// sets of platforms: where it takes effect only at the next launch, where it
+// exists at all, and where its default is put in the environment at launch.
+// The order is the menu's and the settings file's. The menu draws its plain
+// switches, sliders and lists from it; settings with a control of their own
+// (Smooth Motion's rate, Jump & Sprint, the texture pack, the remaps, Better
+// Wind Waker's options) take their names and defaults from it. No ImGui here,
+// so the host tests can read it.
 #pragma once
 #include <cstring>
 
@@ -20,79 +23,193 @@ enum class Kind { Bool, Int, Float, Choice, Text };
 enum class Control { None, Switch, Slider, Dropdown, Custom };
 enum class Tab { Display, Gameplay, Mods, Controls, SoundFiles };
 
+// A set of platforms, a bit each.
+enum class Os : unsigned { None = 0, Windows = 1, Linux = 2, Mac = 4, All = 7 };
+constexpr Os operator|(Os a, Os b) { return static_cast<Os>(static_cast<unsigned>(a) | static_cast<unsigned>(b)); }
+constexpr bool includes(Os set, Os os) { return (static_cast<unsigned>(set) & static_cast<unsigned>(os)) != 0; }
+
+// The platform this is built for. BW_SETTINGS_OS (Os::Windows, ...) sets
+// another, for the host tests: one platform's rules, compiled on another.
+#if defined(BW_SETTINGS_OS)
+inline constexpr Os kThisOs = BW_SETTINGS_OS;
+#elif defined(_WIN32)
+inline constexpr Os kThisOs = Os::Windows;
+#elif defined(__APPLE__)
+inline constexpr Os kThisOs = Os::Mac;
+#else
+inline constexpr Os kThisOs = Os::Linux;
+#endif
+
 struct Setting {
-    const char* key;      // environment variable and settings file key
-    const char* windows;  // the Windows settings file's old key, nullptr if none
-    Kind kind;
-    const char* fallback; // the value when the variable is unset ("" for none)
-    float low, high;      // Int and Float: the menu's range
-    const char* label;    // nullptr: drawn as part of another setting's control
-    Tab tab;
-    bool next_launch;     // takes effect when BlueWake starts again
-    Control control;      // how the shared draw_tab draws it; table order is display order
-    const char* note;     // the quiet line under it, nullptr for none
-    const char* needs;    // a Bool setting that must be on, nullptr for always on
-    const char* group;    // a heading drawn before it, nullptr to carry on under the last
-    const char* shown;    // Slider: how its value reads ("%.0f seconds"), nullptr for "%.2f"
-    const char* stored;   // Slider: how it is written to the file, nullptr for "%.3f"
-    const char* dead_when; // greyed out while this setting has a value, nullptr for never
+    const char* key = "";                // environment variable and settings file key
+    const char* old_windows = nullptr;   // the old Windows settings file's key, nullptr if none
+    Kind kind = Kind::Text;
+    const char* fallback = "";           // the default ("" for none)
+    const char* windows_fallback = nullptr; // Windows' own default, nullptr: the same
+    float low = 0.f, high = 0.f;         // Int and Float: the menu's range
+    const char* label = nullptr;         // nullptr: drawn as part of another setting's control
+    Tab tab = Tab::Display;
+    Control control = Control::None;     // how the shared draw_tab draws it; table order is display order
+    const char* note = nullptr;          // the quiet line under it
+    const char* needs = nullptr;         // a Bool setting that must be on for it to be shown
+    const char* group = nullptr;         // a heading drawn before it, "" for a plain line
+    const char* shown = nullptr;         // Slider: how its value reads ("%.0f seconds"), nullptr for "%.2f"
+    const char* stored = nullptr;        // Slider: how it is written to the file, nullptr for "%.3f"
+    const char* dead_when = nullptr;     // left out while this setting has a value
+    Os next_launch = Os::None;           // where it takes effect only when BlueWake starts again
+    Os platforms = Os::All;              // where it exists (the file keeps it, the menu draws it)
+    // Where the default is put in the environment at launch, so the game reads
+    // it rather than its own: Windows fills every default, as its settings
+    // always have; Mac and Linux only where the game's own differs.
+    Os fill = Os::Windows;
 };
 
 // clang-format off
 inline constexpr Setting kSettings[] = {
-    {"DOL_AURORA_TEXTURE_PACK", "texture_pack", Kind::Text, "", 0, 0, "HD textures", Tab::Mods, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_ASPECT", "aspect", Kind::Choice, "4:3", 0, 0, "Widescreen", Tab::Mods, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_HD_LOOK", "hd_look", Kind::Bool, "0", 0, 0, "Wind Waker HD look   (F2)", Tab::Display, false, Control::Switch, "The HD release's look, rebuilt piece by piece. So far: islands on the horizon from further away, soft shading, sun and cloud shadows and edge light outdoors, torch light, a soft distance and bloom. Off by default.", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {.key = "DOL_AURORA_TEXTURE_PACK", .old_windows = "texture_pack", .label = "HD textures", .tab = Tab::Mods,
+     .control = Control::Custom, .next_launch = Os::All},
+    {.key = "BLUEWAKE_ASPECT", .old_windows = "aspect", .kind = Kind::Choice, .fallback = "4:3",
+     .label = "Widescreen", .tab = Tab::Mods, .control = Control::Custom, .next_launch = Os::All},
+    {.key = "BLUEWAKE_HD_LOOK", .old_windows = "hd_look", .kind = Kind::Bool, .fallback = "0",
+     .label = "Wind Waker HD look   (F2)", .control = Control::Switch,
+     .note = "The HD release's look, rebuilt piece by piece. So far: islands on the horizon from further away, soft shading, sun and cloud shadows and edge light outdoors, torch light, a soft distance and bloom. Off by default."},
     // Custom: the button that goes fullscreen now is drawn above the switch.
-    {"DOL_AURORA_FULLSCREEN", "fullscreen", Kind::Bool, "0", 0, 0, "Start in fullscreen", Tab::Display, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_RENDER_SCALE", "render_scale", Kind::Int, "0", 0, 4, "Render resolution", Tab::Display, false, Control::Dropdown, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_FRAME_INTERP", "smooth_motion", Kind::Bool, "0", 0, 0, "Smooth Motion (experimental)   (F10)", Tab::Display, false, Control::Custom, "The game runs at 30; display changes and overloads can lower the presentation rate.", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_FRAME_INTERP_STEPS", "smooth_motion_fps", Kind::Choice, "1", 0, 0, nullptr, Tab::Display, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_SHOW_FPS", "show_fps", Kind::Bool, "0", 0, 0, "Show the frame rate   (F9)", Tab::Display, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_FPS_POSITION", "fps_position", Kind::Choice, "", 0, 0, "FPS position", Tab::Display, false, Control::Dropdown, nullptr, "DOL_AURORA_SHOW_FPS", nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_FORCE_ANISO", "anisotropy", Kind::Int, "1", 1, 16, "Texture filtering", Tab::Display, false, Control::Dropdown, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_MODS", "betterww", Kind::Text, "", 0, 0, "Better Wind Waker", Tab::Mods, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_OPTIONS", nullptr, Kind::Text, "", 0, 0, nullptr, Tab::Mods, true, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr}, // Windows: option.NAME
-    {"BLUEWAKE_FADE_FRAMES", "fast_transitions", Kind::Int, "", 0, 0, nullptr, Tab::Gameplay, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_FAST_FORWARD", "fast_transitions", Kind::Bool, "1", 0, 0, "Fast transitions (short fades, no waiting in the black)", Tab::Gameplay, false, Control::Switch, nullptr, nullptr, "Doors and exits", nullptr, nullptr, nullptr},
-    {"BLUEWAKE_QUICK_DOORS", "quick_doors", Kind::Bool, "1", 0, 0, "Quick doors (no walk-in or door closing behind Link)", Tab::Gameplay, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_JUMP_BUTTON", "movement_extras", Kind::Bool, "0", 0, 0, "Jump & Sprint (Space or the left bumper jumps; Shift or the left stick click sprints)", Tab::Gameplay, false, Control::Custom, nullptr, nullptr, "Jump & Sprint", nullptr, nullptr, nullptr},
-    {"BLUEWAKE_PAD_SWAP_AB", "controller_swap_ab", Kind::Bool, "0", 0, 0, "Swap A and B", Tab::Controls, false, Control::Switch, nullptr, nullptr, "Controller", nullptr, nullptr, "BLUEWAKE_BUTTON_MAP"},
-    {"BLUEWAKE_PAD_SWAP_XY", "controller_swap_xy", Kind::Bool, "0", 0, 0, "Swap X and Y", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, "BLUEWAKE_BUTTON_MAP"},
-    {"BLUEWAKE_PAD_SWAP_LR", "controller_swap_lr", Kind::Bool, "0", 0, 0, "Swap L and R (the triggers)", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, "BLUEWAKE_BUTTON_MAP"},
-    {"BLUEWAKE_DPAD_MENUS", "dpad_menus", Kind::Bool, "0", 0, 0, "D-pad moves the cursor in Items and Quest Status", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_BUTTON_MAP", "button_map", Kind::Text, "", 0, 0, "Controller buttons", Tab::Controls, false, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_KEY_MAP", "key_map", Kind::Text, "", 0, 0, "Keyboard keys", Tab::Controls, false, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_MOUSE_CAMERA", "mouse_camera", Kind::Bool, "1", 0, 0, "Mouse camera (click the game to use it)", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_MOUSE_SENSITIVITY", "mouse_sensitivity", Kind::Float, "1.0", 0.2f, 3.f, "Mouse sensitivity", Tab::Controls, false, Control::Slider, nullptr, "BLUEWAKE_MOUSE_CAMERA", nullptr, "%.2fx", "%.2f", nullptr},
-    {"BLUEWAKE_MOUSE_INVERT_Y", "mouse_invert_y", Kind::Bool, "0", 0, 0, "Invert the mouse's up and down", Tab::Controls, false, Control::Switch, nullptr, "BLUEWAKE_MOUSE_CAMERA", nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_MOUSE_BUTTONS", "mouse_buttons", Kind::Text, "", 0, 0, "Mouse buttons", Tab::Controls, false, Control::Custom, nullptr, "BLUEWAKE_MOUSE_CAMERA", nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_STICK_CAMERA", "stick_camera", Kind::Bool, "1", 0, 0, "Direct right-stick camera and aiming", Tab::Controls, false, Control::Switch, nullptr, nullptr, "", nullptr, nullptr, nullptr},
-    {"BLUEWAKE_STICK_CAMERA_SPEED", "stick_camera_speed", Kind::Float, "360", 120.f, 720.f, "Right-stick turn speed", Tab::Controls, false, Control::Slider, nullptr, "BLUEWAKE_STICK_CAMERA", nullptr, "%.0f degrees a second", "%.0f", nullptr},
-    {"BLUEWAKE_STICK_AIM_SPEED", "stick_aim_speed", Kind::Float, "180", 60.f, 480.f, "Right-stick aim speed (first person, items)", Tab::Controls, false, Control::Slider, nullptr, "BLUEWAKE_STICK_CAMERA", nullptr, "%.0f degrees a second", "%.0f", nullptr},
-    {"BLUEWAKE_STICK_ZOOM", "stick_zoom", Kind::Bool, "0", 0, 0, "Hold the right-stick click and move it up/down to zoom", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_STICK_ZOOM_SPEED", "stick_zoom_speed", Kind::Float, "1.275", 0.25f, 2.f, "Controller zoom speed", Tab::Controls, false, Control::Slider, nullptr, "BLUEWAKE_STICK_ZOOM", nullptr, "%.2fx", "%.3f", nullptr},
-    {"BLUEWAKE_STICK_CAMERA_INVERT_X", "controller_invert_x", Kind::Bool, "0", 0, 0, "Invert the right stick's left and right", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_STICK_CAMERA_INVERT_Y", "controller_invert_y", Kind::Bool, "0", 0, 0, "Invert the right stick's up and down", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_AIM_INVERT_Y", "aim_invert_y", Kind::Bool, "0", 0, 0, "Invert the left stick's up and down when aiming (first person, items)", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_GYRO_AIM", "gyro_aim", Kind::Bool, "0", 0, 0, "Gyro aiming: move the controller to aim (DualSense, DualShock 4, Switch Pro, Steam Deck)", Tab::Controls, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_GYRO_AIM_SPEED", "gyro_aim_speed", Kind::Float, "1", 0.25f, 4.f, "Gyro aim speed", Tab::Controls, false, Control::Custom, nullptr, "BLUEWAKE_GYRO_AIM", nullptr, "%.2fx", "%.2f", nullptr},
-    {"BLUEWAKE_HAPTICS", "haptics", Kind::Choice, "enhanced", 0, 0, "Controller vibration", Tab::Controls, false, Control::Custom, nullptr, nullptr, "Haptics", nullptr, nullptr, nullptr},
-    {"BLUEWAKE_HAPTICS_STRENGTH", "haptics_strength", Kind::Int, "80", 0, 100, "Vibration strength", Tab::Controls, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_HAPTICS_TRIGGERS", "haptics_triggers", Kind::Bool, "1", 0, 0, "Trigger feedback (Xbox impulse triggers, DualSense trigger vibration)", Tab::Controls, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_SPRINT_SPEED", "sprint_speed", Kind::Float, "1", 0, 0, nullptr, Tab::Gameplay, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
+    {.key = "DOL_AURORA_FULLSCREEN", .old_windows = "fullscreen", .kind = Kind::Bool, .fallback = "0",
+     .label = "Start in fullscreen", .control = Control::Custom, .next_launch = Os::All},
+    {.key = "DOL_AURORA_RENDER_SCALE", .old_windows = "render_scale", .kind = Kind::Int, .fallback = "0",
+     .high = 4.f, .label = "Render resolution", .control = Control::Dropdown},
+    {.key = "DOL_AURORA_FRAME_INTERP", .old_windows = "smooth_motion", .kind = Kind::Bool, .fallback = "0",
+     .label = "Smooth Motion (experimental)   (F10)", .control = Control::Custom,
+     .note = "The game runs at 30; display changes and overloads can lower the presentation rate."},
+    {.key = "DOL_AURORA_FRAME_INTERP_STEPS", .old_windows = "smooth_motion_fps", .kind = Kind::Choice,
+     .fallback = "1"},
+    {.key = "DOL_AURORA_SHOW_FPS", .old_windows = "show_fps", .kind = Kind::Bool, .fallback = "0",
+     .label = "Show the frame rate   (F9)", .control = Control::Switch},
+    {.key = "DOL_AURORA_FPS_POSITION", .old_windows = "fps_position", .kind = Kind::Choice,
+     .label = "FPS position", .control = Control::Dropdown, .needs = "DOL_AURORA_SHOW_FPS"},
+    {.key = "DOL_AURORA_FORCE_ANISO", .old_windows = "anisotropy", .kind = Kind::Int, .fallback = "1", .low = 1.f,
+     .high = 16.f, .label = "Texture filtering", .control = Control::Dropdown, .fill = Os::None},
+    {.key = "BLUEWAKE_MODS", .old_windows = "betterww", .label = "Better Wind Waker", .tab = Tab::Mods,
+     .control = Control::Custom, .next_launch = Os::All},
+    {.key = "BLUEWAKE_OPTIONS", .tab = Tab::Mods, .next_launch = Os::All}, // Windows: option.NAME
+    {.key = "BLUEWAKE_FADE_FRAMES", .old_windows = "fast_transitions", .kind = Kind::Int, .tab = Tab::Gameplay},
+    {.key = "BLUEWAKE_FAST_FORWARD", .old_windows = "fast_transitions", .kind = Kind::Bool, .fallback = "1",
+     .windows_fallback = "0", .label = "Fast transitions (short fades, no waiting in the black)",
+     .tab = Tab::Gameplay, .control = Control::Switch, .group = "Doors and exits", .next_launch = Os::Windows},
+    {.key = "BLUEWAKE_QUICK_DOORS", .old_windows = "quick_doors", .kind = Kind::Bool, .fallback = "1",
+     .windows_fallback = "0", .label = "Quick doors (no walk-in or door closing behind Link)",
+     .tab = Tab::Gameplay, .control = Control::Switch, .next_launch = Os::Windows},
+    {.key = "BLUEWAKE_JUMP_BUTTON", .old_windows = "movement_extras", .kind = Kind::Bool, .fallback = "0",
+     .label = "Jump & Sprint (Space or the left bumper jumps; Shift or the left stick click sprints)",
+     .tab = Tab::Gameplay, .control = Control::Custom, .group = "Jump & Sprint", .next_launch = Os::Windows,
+     .fill = Os::All},
+    {.key = "BLUEWAKE_PAD_SWAP_AB", .old_windows = "controller_swap_ab", .kind = Kind::Bool, .fallback = "0",
+     .label = "Swap A and B", .tab = Tab::Controls, .control = Control::Switch, .group = "Controller",
+     .dead_when = "BLUEWAKE_BUTTON_MAP"},
+    {.key = "BLUEWAKE_PAD_SWAP_XY", .old_windows = "controller_swap_xy", .kind = Kind::Bool, .fallback = "0",
+     .label = "Swap X and Y", .tab = Tab::Controls, .control = Control::Switch,
+     .dead_when = "BLUEWAKE_BUTTON_MAP"},
+    {.key = "BLUEWAKE_PAD_SWAP_LR", .old_windows = "controller_swap_lr", .kind = Kind::Bool, .fallback = "0",
+     .label = "Swap L and R (the triggers)", .tab = Tab::Controls, .control = Control::Switch,
+     .dead_when = "BLUEWAKE_BUTTON_MAP"},
+    {.key = "BLUEWAKE_DPAD_MENUS", .old_windows = "dpad_menus", .kind = Kind::Bool, .fallback = "0",
+     .label = "D-pad moves the cursor in Items and Quest Status", .tab = Tab::Controls,
+     .control = Control::Switch},
+    {.key = "BLUEWAKE_BUTTON_MAP", .old_windows = "button_map", .label = "Controller buttons",
+     .tab = Tab::Controls, .control = Control::Custom},
+    {.key = "BLUEWAKE_KEY_MAP", .old_windows = "key_map", .label = "Keyboard keys", .tab = Tab::Controls,
+     .control = Control::Custom},
+    {.key = "BLUEWAKE_MOUSE_CAMERA", .old_windows = "mouse_camera", .kind = Kind::Bool, .fallback = "1",
+     .label = "Mouse camera (click the game to use it)", .tab = Tab::Controls, .control = Control::Switch},
+    {.key = "BLUEWAKE_MOUSE_SENSITIVITY", .old_windows = "mouse_sensitivity", .kind = Kind::Float,
+     .fallback = "1.0", .low = 0.2f, .high = 3.f, .label = "Mouse sensitivity", .tab = Tab::Controls,
+     .control = Control::Slider, .needs = "BLUEWAKE_MOUSE_CAMERA", .shown = "%.2fx", .stored = "%.2f"},
+    {.key = "BLUEWAKE_MOUSE_INVERT_Y", .old_windows = "mouse_invert_y", .kind = Kind::Bool, .fallback = "0",
+     .label = "Invert the mouse's up and down", .tab = Tab::Controls, .control = Control::Switch,
+     .needs = "BLUEWAKE_MOUSE_CAMERA"},
+    {.key = "BLUEWAKE_MOUSE_BUTTONS", .old_windows = "mouse_buttons", .label = "Mouse buttons",
+     .tab = Tab::Controls, .control = Control::Custom, .needs = "BLUEWAKE_MOUSE_CAMERA"},
+    {.key = "BLUEWAKE_STICK_CAMERA", .old_windows = "stick_camera", .kind = Kind::Bool, .fallback = "1",
+     .label = "Direct right-stick camera and aiming", .tab = Tab::Controls, .control = Control::Switch,
+     .group = ""},
+    {.key = "BLUEWAKE_STICK_CAMERA_SPEED", .old_windows = "stick_camera_speed", .kind = Kind::Float,
+     .fallback = "360", .low = 120.f, .high = 720.f, .label = "Right-stick turn speed", .tab = Tab::Controls,
+     .control = Control::Slider, .needs = "BLUEWAKE_STICK_CAMERA", .shown = "%.0f degrees a second",
+     .stored = "%.0f"},
+    {.key = "BLUEWAKE_STICK_AIM_SPEED", .old_windows = "stick_aim_speed", .kind = Kind::Float, .fallback = "180",
+     .low = 60.f, .high = 480.f, .label = "Right-stick aim speed (first person, items)", .tab = Tab::Controls,
+     .control = Control::Slider, .needs = "BLUEWAKE_STICK_CAMERA", .shown = "%.0f degrees a second",
+     .stored = "%.0f"},
+    {.key = "BLUEWAKE_STICK_ZOOM", .old_windows = "stick_zoom", .kind = Kind::Bool, .fallback = "0",
+     .label = "Hold the right-stick click and move it up/down to zoom", .tab = Tab::Controls,
+     .control = Control::Switch},
+    {.key = "BLUEWAKE_STICK_ZOOM_SPEED", .old_windows = "stick_zoom_speed", .kind = Kind::Float,
+     .fallback = "1.275", .low = 0.25f, .high = 2.f, .label = "Controller zoom speed", .tab = Tab::Controls,
+     .control = Control::Slider, .needs = "BLUEWAKE_STICK_ZOOM", .shown = "%.2fx", .stored = "%.3f"},
+    {.key = "BLUEWAKE_STICK_CAMERA_INVERT_X", .old_windows = "controller_invert_x", .kind = Kind::Bool,
+     .fallback = "0", .label = "Invert the right stick's left and right", .tab = Tab::Controls,
+     .control = Control::Switch},
+    {.key = "BLUEWAKE_STICK_CAMERA_INVERT_Y", .old_windows = "controller_invert_y", .kind = Kind::Bool,
+     .fallback = "0", .label = "Invert the right stick's up and down", .tab = Tab::Controls,
+     .control = Control::Switch},
+    {.key = "BLUEWAKE_AIM_INVERT_Y", .old_windows = "aim_invert_y", .kind = Kind::Bool, .fallback = "0",
+     .label = "Invert the left stick's up and down when aiming (first person, items)", .tab = Tab::Controls,
+     .control = Control::Switch},
+    {.key = "BLUEWAKE_GYRO_AIM", .old_windows = "gyro_aim", .kind = Kind::Bool, .fallback = "0",
+     .label = "Gyro aiming: move the controller to aim (DualSense, DualShock 4, Switch Pro, Steam Deck)",
+     .tab = Tab::Controls, .control = Control::Switch},
+    {.key = "BLUEWAKE_GYRO_AIM_SPEED", .old_windows = "gyro_aim_speed", .kind = Kind::Float, .fallback = "1",
+     .low = 0.25f, .high = 4.f, .label = "Gyro aim speed", .tab = Tab::Controls, .control = Control::Custom,
+     .needs = "BLUEWAKE_GYRO_AIM", .shown = "%.2fx", .stored = "%.2f"},
+    {.key = "BLUEWAKE_HAPTICS", .old_windows = "haptics", .kind = Kind::Choice, .fallback = "enhanced",
+     .label = "Controller vibration", .tab = Tab::Controls, .control = Control::Custom, .group = "Haptics"},
+    {.key = "BLUEWAKE_HAPTICS_STRENGTH", .old_windows = "haptics_strength", .kind = Kind::Int, .fallback = "80",
+     .high = 100.f, .label = "Vibration strength", .tab = Tab::Controls},
+    {.key = "BLUEWAKE_HAPTICS_TRIGGERS", .old_windows = "haptics_triggers", .kind = Kind::Bool, .fallback = "1",
+     .label = "Trigger feedback (Xbox impulse triggers, DualSense trigger vibration)", .tab = Tab::Controls},
+    {.key = "BLUEWAKE_SPRINT_SPEED", .old_windows = "sprint_speed", .kind = Kind::Float, .fallback = "1",
+     .tab = Tab::Gameplay, .next_launch = Os::Windows, .fill = Os::All},
     // The inverts are not greyed out with the direct camera off. Whether they then
     // reach the game's own camera still differs (desktop_menu.cpp, apply_controller).
-    {"BLUEWAKE_CLIMB", "climb", Kind::Bool, "0", 0, 0, "Wall climbing (experimental)", Tab::Gameplay, false, Control::Switch, nullptr, nullptr, "Climbing", nullptr, nullptr, nullptr},
-    {"BLUEWAKE_CLIMB_STAMINA", "climb_stamina", Kind::Float, "12", 4.f, 30.f, "Climbing stamina", Tab::Gameplay, false, Control::Slider, nullptr, "BLUEWAKE_CLIMB", nullptr, "%.0f seconds", "%.0f", nullptr},
-    {"BLUEWAKE_FOREST_WATER_KEEP_TREES", "forest_water_keep_trees", Kind::Bool, "0", 0, 0, "Keep watered trees when time runs out", Tab::Gameplay, false, Control::Switch, "Forest Water still expires. Refill and continue with the remaining trees.", nullptr, "Forest Water Challenge", nullptr, nullptr, nullptr},
-    {"BLUEWAKE_FOREST_WATER_30_MINUTES", "forest_water_30_minutes", Kind::Bool, "0", 0, 0, "30-minute Forest Water timer", Tab::Gameplay, false, Control::Switch, "Applies the next time you collect Forest Water. Both options are off by default.", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_STAGE_SELECT_TOGGLE", "stage_select", Kind::Bool, "0", 0, 0, "Developers' stage select (F7)", Tab::Gameplay, true, Control::Custom, "F7 during play opens the menu the developers used to jump to any room, from your own file; F7 in the menu goes back. On a controller, Back (View on Xbox, Share or Create on PlayStation) opens these settings and the button below does the same. Off by default.", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"DOL_AURORA_ASPECT_FIT", "keep_aspect", Kind::Bool, "0", 0, 0, "Keep the picture's shape (black bars rather than stretching)", Tab::Display, true, Control::Custom, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_PAUSE_UNFOCUSED", "pause_unfocused", Kind::Bool, "0", 0, 0, "Pause while the window is in the background", Tab::Display, false, Control::Switch, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_SHADERS_FIRST", "compile_shaders_first", Kind::Bool, "0", 0, 0, "Compile shaders before playing", Tab::Display, true, Control::Switch, "At start, wait until the shaders from earlier play are ready, so nothing is missing from the picture the first time it is drawn. Otherwise they are made while you play.", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"BLUEWAKE_SPRINT_CHOICE", "sprint_speed", Kind::Float, "1.5", 1.1f, 2.f, "Sprint speed", Tab::Gameplay, false, Control::None, nullptr, "BLUEWAKE_JUMP_BUTTON", nullptr, "%.2fx", "%.2f", nullptr},
-    {"BLUEWAKE_DSP_MODE", "lle_audio", Kind::Choice, "hle", 0, 0, nullptr, Tab::SoundFiles, true, Control::Custom, nullptr, nullptr, "Sound", nullptr, nullptr, nullptr},
+    {.key = "BLUEWAKE_CLIMB", .old_windows = "climb", .kind = Kind::Bool, .fallback = "0",
+     .label = "Wall climbing (experimental)", .tab = Tab::Gameplay, .control = Control::Switch,
+     .group = "Climbing"},
+    {.key = "BLUEWAKE_CLIMB_STAMINA", .old_windows = "climb_stamina", .kind = Kind::Float, .fallback = "12",
+     .low = 4.f, .high = 30.f, .label = "Climbing stamina", .tab = Tab::Gameplay, .control = Control::Slider,
+     .needs = "BLUEWAKE_CLIMB", .shown = "%.0f seconds", .stored = "%.0f"},
+    {.key = "BLUEWAKE_FOREST_WATER_KEEP_TREES", .old_windows = "forest_water_keep_trees", .kind = Kind::Bool,
+     .fallback = "0", .label = "Keep watered trees when time runs out", .tab = Tab::Gameplay,
+     .control = Control::Switch,
+     .note = "Forest Water still expires. Refill and continue with the remaining trees.",
+     .group = "Forest Water Challenge"},
+    {.key = "BLUEWAKE_FOREST_WATER_30_MINUTES", .old_windows = "forest_water_30_minutes", .kind = Kind::Bool,
+     .fallback = "0", .label = "30-minute Forest Water timer", .tab = Tab::Gameplay, .control = Control::Switch,
+     .note = "Applies the next time you collect Forest Water. Both options are off by default."},
+    {.key = "BLUEWAKE_STAGE_SELECT_TOGGLE", .old_windows = "stage_select", .kind = Kind::Bool, .fallback = "0",
+     .label = "Developers' stage select (F7)", .tab = Tab::Gameplay, .control = Control::Custom,
+     .note = "F7 during play opens the menu the developers used to jump to any room, from your own file; F7 in the menu goes back. On a controller, Back (View on Xbox, Share or Create on PlayStation) opens these settings and the button below does the same. Off by default.",
+     .next_launch = Os::All},
+    {.key = "DOL_AURORA_ASPECT_FIT", .old_windows = "keep_aspect", .kind = Kind::Bool, .fallback = "0",
+     .windows_fallback = "1", .label = "Keep the picture's shape (black bars rather than stretching)",
+     .control = Control::Custom, .next_launch = Os::All},
+    {.key = "BLUEWAKE_PAUSE_UNFOCUSED", .old_windows = "pause_unfocused", .kind = Kind::Bool, .fallback = "0",
+     .label = "Pause while the window is in the background", .control = Control::Switch},
+    {.key = "BLUEWAKE_SHADERS_FIRST", .old_windows = "compile_shaders_first", .kind = Kind::Bool, .fallback = "0",
+     .label = "Compile shaders before playing", .control = Control::Switch,
+     .note = "At start, wait until the shaders from earlier play are ready, so nothing is missing from the picture the first time it is drawn. Otherwise they are made while you play.",
+     .next_launch = Os::All},
+    {.key = "BLUEWAKE_SPRINT_CHOICE", .old_windows = "sprint_speed", .kind = Kind::Float, .fallback = "1.5",
+     .low = 1.1f, .high = 2.f, .label = "Sprint speed", .tab = Tab::Gameplay, .needs = "BLUEWAKE_JUMP_BUTTON",
+     .shown = "%.2fx", .stored = "%.2f"},
+    {.key = "BLUEWAKE_DSP_MODE", .old_windows = "lle_audio", .kind = Kind::Choice, .fallback = "hle",
+     .tab = Tab::SoundFiles, .control = Control::Custom, .group = "Sound", .next_launch = Os::All,
+     .fill = Os::All},
+    // Not drawn: the texture pack's folder while HD textures are off, so they come back to it.
+    {.key = "BLUEWAKE_TEXTURE_PACK_FOLDER", .tab = Tab::Mods, .fill = Os::None},
+    // Windows only, not drawn: the window's size and place as the player left them, checked at launch.
+    {.key = "DOL_AURORA_WINDOW", .old_windows = "window", .platforms = Os::Windows, .fill = Os::None},
+    {.key = "BLUEWAKE_WINDOW_POSITION", .old_windows = "window_position", .platforms = Os::Windows,
+     .fill = Os::None},
 };
 // clang-format on
 
@@ -106,7 +223,19 @@ inline const Setting* find(const char* key) {
     return nullptr;
 }
 
+// What a row says for one platform: its default, whether it waits for the next
+// launch, whether it exists there, and whether its default is filled in.
+inline const char* fallback_for(const Setting& s, Os os = kThisOs) {
+    return os == Os::Windows && s.windows_fallback != nullptr ? s.windows_fallback : s.fallback;
+}
+inline bool next_launch_on(const Setting& s, Os os = kThisOs) { return includes(s.next_launch, os); }
+inline bool exists_on(const Setting& s, Os os = kThisOs) { return includes(s.platforms, os); }
+inline bool filled_on(const Setting& s, Os os = kThisOs) { return includes(s.fill, os); }
+
 // A Bool setting's default.
-inline bool default_on(const Setting& setting) { return setting.fallback[0] != '\0' && setting.fallback[0] != '0'; }
+inline bool default_on(const Setting& s, Os os = kThisOs) {
+    const char* value = fallback_for(s, os);
+    return value[0] != '\0' && value[0] != '0';
+}
 
 } // namespace bw_settings

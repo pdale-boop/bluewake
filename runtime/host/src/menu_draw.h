@@ -37,13 +37,7 @@ inline bool on(const char* key, bool fallback) {
 // The setting named `key`, or a complaint and a blank: an unknown name is a
 // mistake in the menu, not something a player can reach.
 inline const bw_settings::Setting& setting(const char* key) {
-    static const bw_settings::Setting kMissing{"",      nullptr, bw_settings::Kind::Text,
-                                               "",      0,       0,
-                                               "?",     bw_settings::Tab::Display,
-                                               false,   bw_settings::Control::None,
-                                               nullptr, nullptr,
-                                               nullptr, nullptr,
-                                               nullptr, nullptr};
+    static const bw_settings::Setting kMissing{.label = "?"};
     const bw_settings::Setting* found = bw_settings::find(key);
     if (found == nullptr)
         std::fprintf(stderr, "[settings] %s is not in settings_table.h\n", key);
@@ -62,8 +56,9 @@ inline bool draw_switch(const bw_settings::Setting& s, bool* value) {
 
 // A slider with its label, default, range and formats from the table.
 inline bool draw_slider(const bw_settings::Setting& s) {
-    const float fallback = std::strtof(s.fallback, nullptr);
-    float value = std::strtof(get(s.key, s.fallback).c_str(), nullptr);
+    const char* fallback_text = bw_settings::fallback_for(s);
+    const float fallback = std::strtof(fallback_text, nullptr);
+    float value = std::strtof(get(s.key, fallback_text).c_str(), nullptr);
     if (!(value > 0.f))
         value = fallback;
     if (!bw_menu_slider(s.label, &value, s.low, s.high, s.shown != nullptr ? s.shown : "%.2f"))
@@ -108,7 +103,7 @@ inline void draw_setting(const bw_settings::Setting& s) {
         int count = 0;
         if (!choices(s.key, &shown, &stored, &count) || count <= 0)
             break;
-        const std::string now = get(s.key, s.fallback);
+        const std::string now = get(s.key, bw_settings::fallback_for(s));
         int index = 0;
         for (int i = 0; i < count; ++i)
             if (now == stored[i])

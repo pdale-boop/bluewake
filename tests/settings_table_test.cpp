@@ -3,6 +3,7 @@
 #endif
 #include <cassert>
 #include <cstdlib>
+#include <cstddef>
 #include <cstring>
 #include <set>
 #include <string>
@@ -27,8 +28,27 @@ static const char* const kFileOrder[] = {
     "BLUEWAKE_HAPTICS_TRIGGERS", "BLUEWAKE_SPRINT_SPEED", "BLUEWAKE_CLIMB", "BLUEWAKE_CLIMB_STAMINA",
     "BLUEWAKE_FOREST_WATER_KEEP_TREES", "BLUEWAKE_FOREST_WATER_30_MINUTES", "BLUEWAKE_STAGE_SELECT_TOGGLE",
     "DOL_AURORA_ASPECT_FIT", "BLUEWAKE_PAUSE_UNFOCUSED", "BLUEWAKE_SHADERS_FIRST", "BLUEWAKE_SPRINT_CHOICE",
-    "BLUEWAKE_DSP_MODE",
+    "BLUEWAKE_DSP_MODE", "BLUEWAKE_TEXTURE_PACK_FOLDER", "DOL_AURORA_WINDOW", "BLUEWAKE_WINDOW_POSITION",
 };
+
+// Each platform's rules, as the menus had them in code before the table held
+// them (win_settings.cpp's defaults and waits_for_launch, settings_menu.cpp's
+// load): a row that changes one of these changes what a player gets.
+static const char* const kWindowsOwnDefaults[][2] = {
+    {"DOL_AURORA_ASPECT_FIT", "1"}, {"BLUEWAKE_FAST_FORWARD", "0"}, {"BLUEWAKE_QUICK_DOORS", "0"}};
+static const char* const kWindowsOnlyNextLaunch[] = {"BLUEWAKE_FAST_FORWARD", "BLUEWAKE_QUICK_DOORS",
+                                                     "BLUEWAKE_JUMP_BUTTON", "BLUEWAKE_SPRINT_SPEED"};
+static const char* const kFilledEverywhere[] = {"BLUEWAKE_DSP_MODE", "BLUEWAKE_JUMP_BUTTON", "BLUEWAKE_SPRINT_SPEED"};
+static const char* const kWindowsOnly[] = {"DOL_AURORA_WINDOW", "BLUEWAKE_WINDOW_POSITION"};
+static const char* const kNotFilled[] = {"DOL_AURORA_FORCE_ANISO", "BLUEWAKE_TEXTURE_PACK_FOLDER",
+                                         "DOL_AURORA_WINDOW", "BLUEWAKE_WINDOW_POSITION"};
+
+template <size_t N> static bool listed(const char* const (&list)[N], const char* key) {
+    for (const char* k : list)
+        if (std::strcmp(k, key) == 0)
+            return true;
+    return false;
+}
 
 int main() {
     assert(kCount == static_cast<int>(sizeof kFileOrder / sizeof kFileOrder[0]));
@@ -38,16 +58,42 @@ int main() {
         assert(std::strcmp(s.key, kFileOrder[i]) == 0);
         assert(keys.insert(s.key).second);
         assert(find(s.key) == &s);
-        if (s.kind == Kind::Bool)
-            assert(std::strcmp(s.fallback, "0") == 0 || std::strcmp(s.fallback, "1") == 0);
-        // A slider's default sits inside its range.
-        if ((s.kind == Kind::Int || s.kind == Kind::Float) && s.label != nullptr && s.high > s.low) {
-            const float value = std::strtof(s.fallback, nullptr);
-            assert(value >= s.low && value <= s.high);
+        for (const Os os : {Os::Windows, Os::Linux, Os::Mac}) {
+            const char* fallback = fallback_for(s, os);
+            if (s.kind == Kind::Bool)
+                assert(std::strcmp(fallback, "0") == 0 || std::strcmp(fallback, "1") == 0);
+            // A slider's default sits inside its range.
+            if ((s.kind == Kind::Int || s.kind == Kind::Float) && s.label != nullptr && s.high > s.low) {
+                const float value = std::strtof(fallback, nullptr);
+                assert(value >= s.low && value <= s.high);
+            }
         }
+        // Windows' own defaults, and only those, differ from the others'.
+        bool own = false;
+        for (const auto& pair : kWindowsOwnDefaults)
+            if (std::strcmp(pair[0], s.key) == 0) {
+                own = true;
+                assert(std::strcmp(fallback_for(s, Os::Windows), pair[1]) == 0 &&
+                       std::strcmp(fallback_for(s, Os::Mac), pair[1]) != 0);
+            }
+        assert(own == (s.windows_fallback != nullptr));
+        // The next launch: the same everywhere, but for Windows' four.
+        const bool windows_only = listed(kWindowsOnlyNextLaunch, s.key);
+        assert(next_launch_on(s, Os::Windows) == (next_launch_on(s, Os::Mac) || windows_only));
+        assert(next_launch_on(s, Os::Mac) == next_launch_on(s, Os::Linux));
+        if (windows_only)
+            assert(!next_launch_on(s, Os::Mac));
+        // Where it exists.
+        assert(exists_on(s, Os::Windows));
+        assert(exists_on(s, Os::Mac) == !listed(kWindowsOnly, s.key) && exists_on(s, Os::Linux) == exists_on(s, Os::Mac));
+        // Windows puts every default in the environment at launch; Mac and Linux
+        // only the three whose game default differs.
+        assert(filled_on(s, Os::Windows) == !listed(kNotFilled, s.key));
+        assert(filled_on(s, Os::Mac) == listed(kFilledEverywhere, s.key));
+        assert(filled_on(s, Os::Linux) == filled_on(s, Os::Mac));
     }
     assert(find("BLUEWAKE_NOT_A_SETTING") == nullptr);
     assert(default_on(*find("BLUEWAKE_MOUSE_CAMERA")) && !default_on(*find("BLUEWAKE_HD_LOOK")));
-    assert(std::strcmp(find("BLUEWAKE_ASPECT")->windows, "aspect") == 0);
+    assert(std::strcmp(find("BLUEWAKE_ASPECT")->old_windows, "aspect") == 0);
     return 0;
 }

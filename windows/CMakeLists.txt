@@ -480,16 +480,16 @@ set_tests_properties(bluewake_pipeline_shutdown_test PROPERTIES TIMEOUT 45)
 
 
 add_executable(bluewake_settings_state_test ${BLUEWAKE_REPO_ROOT}/tests/settings_state_test.cpp)
-target_compile_features(bluewake_settings_state_test PRIVATE cxx_std_17)
+target_compile_features(bluewake_settings_state_test PRIVATE cxx_std_20)
 target_include_directories(bluewake_settings_state_test PRIVATE ${GXRUNTIME_DIR}/graphics/aurora/include)
 add_test(NAME bluewake_settings_state_test COMMAND bluewake_settings_state_test)
 
 add_executable(bluewake_settings_table_test ${BLUEWAKE_REPO_ROOT}/tests/settings_table_test.cpp)
-target_compile_features(bluewake_settings_table_test PRIVATE cxx_std_17)
+target_compile_features(bluewake_settings_table_test PRIVATE cxx_std_20)
 add_test(NAME bluewake_settings_table_test COMMAND bluewake_settings_table_test)
 
 add_executable(bluewake_settings_file_test ${BLUEWAKE_REPO_ROOT}/tests/settings_file_test.cpp)
-target_compile_features(bluewake_settings_file_test PRIVATE cxx_std_17)
+target_compile_features(bluewake_settings_file_test PRIVATE cxx_std_20)
 target_include_directories(bluewake_settings_file_test PRIVATE ${GXRUNTIME_DIR}/graphics/aurora/include)
 add_test(NAME bluewake_settings_file_test COMMAND bluewake_settings_file_test)
 

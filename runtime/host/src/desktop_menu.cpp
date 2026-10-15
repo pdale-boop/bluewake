@@ -413,7 +413,7 @@ bool draw_custom(const bw_settings::Setting& s) {
         // the triggers, which only the shaped kind uses.
         static const char* const kHaptics[] = {"Off", "Classic (the game's own on and off)",
                                                "Enhanced (shaped, with the triggers)"};
-        const std::string mode = env(s.key, s.fallback);
+        const std::string mode = env(s.key, bw_settings::fallback_for(s));
         int haptics = mode.empty() || mode[0] == 'e' || mode[0] == '1' ? 2 : mode[0] == 'c' ? 1 : 0;
         if (bw_menu_combo(s.label, &haptics, kHaptics, 3)) {
             set_env(s.key, haptics == 0 ? "off" : haptics == 1 ? "classic" : "enhanced");
@@ -490,7 +490,7 @@ bool draw_custom(const bw_settings::Setting& s) {
     }
     if (std::strcmp(s.key, "BLUEWAKE_DSP_MODE") == 0) {
         // Two ways to make the sound, as a pair of choices rather than a switch.
-        int exact = env(s.key, s.fallback) == "lle" ? 1 : 0;
+        int exact = env(s.key, bw_settings::fallback_for(s)) == "lle" ? 1 : 0;
         bool picked = ImGui::RadioButton("Fast (Dolphin's high-level Zelda sound)", &exact, 0);
         picked |= ImGui::RadioButton("Exact (the sound chip's own program; slower)", &exact, 1);
         if (picked)

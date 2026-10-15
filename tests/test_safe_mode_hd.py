@@ -46,12 +46,10 @@ std::string read_file(const std::string& path) {
 #include "desktop_settings.cpp"
 '''
 
-# Each platform's hooks, as its file defines the ones the core calls.
+# Each platform's hooks, as its file defines the one the core calls; the rest of
+# what differs is settings_table.h's, compiled for that platform (BW_SETTINGS_OS).
 MAC = r'''
 namespace bw_platform {
-bool waits_for_launch(const char*) { return false; }
-bool read_line(const std::string&, const std::string&) { return false; }
-void write_lines(std::FILE*) {}
 bool convert_old_file(bw_desktop::Lines&) { return false; }
 }
 '''
@@ -59,14 +57,6 @@ bool convert_old_file(bw_desktop::Lines&) { return false; }
 WINDOWS = r'''
 #include "settings_file.h"
 namespace bw_platform {
-bool waits_for_launch(const char* key) {
-    return !std::strcmp(key, "BLUEWAKE_FAST_FORWARD") || !std::strcmp(key, "BLUEWAKE_QUICK_DOORS") ||
-           !std::strcmp(key, "BLUEWAKE_JUMP_BUTTON") || !std::strcmp(key, "BLUEWAKE_SPRINT_SPEED");
-}
-bool read_line(const std::string& key, const std::string&) {
-    return key == kBwWindowKey || key == kBwWindowPositionKey;
-}
-void write_lines(std::FILE*) {}
 bool convert_old_file(bw_desktop::Lines& lines) { return bw_settings_convert_old(lines, "Load/Textures/GZLE01"); }
 }
 '''
@@ -79,6 +69,7 @@ LAUNCH = {
         bw_desktop::load(path);
         if (bw_desktop::env_on("BLUEWAKE_SAFE_MODE", false))
             bw_desktop::apply_safe_mode();
+        bw_desktop::fill_defaults();
     ''',
     "windows": r'''
         const std::string dir = argv[1];
@@ -86,6 +77,7 @@ LAUNCH = {
         bw_desktop::load(path);
         if (bw_desktop::env_on("BLUEWAKE_SAFE_MODE", false) || bw_launch_pending((dir + "launch.pending").c_str()))
             bw_desktop::apply_safe_mode();
+        bw_desktop::fill_defaults();
     ''',
 }
 
@@ -155,7 +147,8 @@ class SafeModeHDTest(unittest.TestCase):
             driver = DRIVER.replace("    LAUNCH", launch).replace("PATH_OF_ARG", argument)
             source = cls.build / (platform + ".cpp")
             source.write_text(COMMON + hooks + hd + CHECK_HD + driver)
-            subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-Wno-unused-variable",
+            platform_os = "-DBW_SETTINGS_OS=Os::" + ("Mac" if platform == "mac" else "Windows")
+            subprocess.run(["c++", "-std=c++20", platform_os, "-Wall", "-Wextra", "-Werror", "-Wno-unused-variable",
                             "-Wno-unused-function", "-I", str(cls.build), "-I", str(HOST),
                             "-I", str(ROOT / "windows/src"), str(source),
                             "-o", str(cls.build / platform)], check=True)

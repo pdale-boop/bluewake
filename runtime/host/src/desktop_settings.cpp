@@ -98,10 +98,9 @@ bool read_file(const std::string& path, Lines* lines) {
 }
 
 // One line of the file into this session: its variable, unless the launch
-// already chose that setting, or the platform's own key.
+// already chose that setting. A key this platform doesn't have (another
+// platform's, or one this build doesn't know) is kept as it was.
 void read_line(const std::string& key, const std::string& value) {
-    if (bw_platform::read_line(key, value))
-        return;
     if (key == kPackFolderKey) {
         g_choices.last_pack = value;
         return;
@@ -110,7 +109,8 @@ void read_line(const std::string& key, const std::string& value) {
     // turns HD textures off for this session, and the folder is kept.
     if (key == "DOL_AURORA_TEXTURE_PACK" && !value.empty())
         g_choices.last_pack = value;
-    const bool known = bw_settings::find(key.c_str()) != nullptr;
+    const bw_settings::Setting* row = bw_settings::find(key.c_str());
+    const bool known = row != nullptr && bw_settings::exists_on(*row);
     const auto launched = g_launch.find(key);
     if (launched != g_launch.end())
         launched->second = value;  // for this session the launch wins; the file keeps this
@@ -142,6 +142,8 @@ std::string file_value(const char* key) {
         value = g_choices.options.empty() ? env(key) : options_value();
     else if (std::strcmp(key, "DOL_AURORA_TEXTURE_PACK") == 0)
         value = g_choices.texture_pack;
+    else if (std::strcmp(key, kPackFolderKey) == 0)
+        value = g_choices.texture_pack.empty() ? g_choices.last_pack : "";
     else
         value = env(key);
     const auto launched = g_launch.find(key);
@@ -239,7 +241,7 @@ void set_texture_pack(const std::string& folder) {
 
 // --- what a restart would change ---------------------------------------------------
 
-bool next_launch(const bw_settings::Setting& s) { return s.next_launch || bw_platform::waits_for_launch(s.key); }
+bool next_launch(const bw_settings::Setting& s) { return bw_settings::next_launch_on(s); }
 
 void note_launch() {
     for (const bw_settings::Setting& s : bw_settings::kSettings)
@@ -294,6 +296,21 @@ void load(const std::string& path, const std::string& read_instead) {
         for (const auto& [key, value] : g_launch)
             names += (names.empty() ? "" : ", ") + key;
         std::fprintf(stderr, "[settings] for this session, as launched: %s\n", names.c_str());
+    }
+}
+
+void fill_defaults() {
+    for (const bw_settings::Setting& s : bw_settings::kSettings) {
+        if (!bw_settings::exists_on(s) || !bw_settings::filled_on(s))
+            continue;
+        // The frames a fade skips have no default of their own: they follow
+        // Fast transitions, as the menu sets them (desktop_menu.cpp, apply_now).
+        if (std::strcmp(s.key, "BLUEWAKE_FADE_FRAMES") == 0) {
+            const bw_settings::Setting* fast = bw_settings::find("BLUEWAKE_FAST_FORWARD");
+            env_default(s.key, env_on(fast->key, bw_settings::default_on(*fast)) ? "6" : "0");
+        } else if (bw_settings::fallback_for(s)[0] != '\0') {
+            env_default(s.key, bw_settings::fallback_for(s));
+        }
     }
 }
 
@@ -379,10 +396,8 @@ void save() {
                "# BlueWake starts wins for that session.\n",
                file);
     for (const bw_settings::Setting& s : bw_settings::kSettings)
-        std::fprintf(file, "%s=%s\n", s.key, file_value(s.key).c_str());
-    if (g_choices.texture_pack.empty() && !g_choices.last_pack.empty())
-        std::fprintf(file, "%s=%s\n", kPackFolderKey, g_choices.last_pack.c_str());
-    bw_platform::write_lines(file);
+        if (bw_settings::exists_on(s))
+            std::fprintf(file, "%s=%s\n", s.key, file_value(s.key).c_str());
     for (const auto& [key, value] : g_other)
         std::fprintf(file, "%s=%s\n", key.c_str(), value.c_str());
     const bool ok = bw_atomic_finish_dirty(file, pending, g_path.c_str(), &g_dirty);

@@ -34,8 +34,8 @@ void choice_changed(const char* key);
 // HD textures on with `folder`, or off with "" (the folder is kept to come back to).
 void set_texture_pack(const std::string& folder);
 
-// Whether this session takes a setting at the next launch: the table's, and
-// the few a platform still takes then (bw_platform::waits_for_launch).
+// Whether this session takes a setting at the next launch, on this platform
+// (settings_table.h's next_launch).
 bool next_launch(const bw_settings::Setting& s);
 // The launch is complete: what a restart would change is measured from here.
 void note_launch();

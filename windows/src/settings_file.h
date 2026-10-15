@@ -253,14 +253,13 @@ inline BwSettingsLines bw_settings_write_new(const Settings& d, const std::strin
         else if (k == "BLUEWAKE_SHADERS_FIRST") v = flag(d.shaders_first);
         else if (k == "BLUEWAKE_SPRINT_CHOICE") v = number("%.2f", d.sprint_speed);
         else if (k == "BLUEWAKE_DSP_MODE") v = d.lle_audio ? "lle" : "hle";
+        else if (k == kBwPackFolderKey) v = !d.hd_textures ? d.texture_pack : "";
+        else if (k == kBwWindowKey && d.window_w > 0 && d.window_h > 0)
+            v = std::to_string(d.window_w) + "x" + std::to_string(d.window_h);
+        else if (k == kBwWindowPositionKey && d.window_x != INT_MIN && d.window_y != INT_MIN)
+            v = std::to_string(d.window_x) + "," + std::to_string(d.window_y);
         lines.emplace_back(k, v);
     }
-    if (d.window_w > 0 && d.window_h > 0)
-        lines.emplace_back(kBwWindowKey, std::to_string(d.window_w) + "x" + std::to_string(d.window_h));
-    if (d.window_x != INT_MIN && d.window_y != INT_MIN)
-        lines.emplace_back(kBwWindowPositionKey, std::to_string(d.window_x) + "," + std::to_string(d.window_y));
-    if (!d.hd_textures && !d.texture_pack.empty())
-        lines.emplace_back(kBwPackFolderKey, d.texture_pack);
     return lines;
 }
 

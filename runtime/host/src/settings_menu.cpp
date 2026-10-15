@@ -153,7 +153,6 @@ void menu_opened(bool open) {
 }
 
 bool pauses_game() { return true; }
-bool waits_for_launch(const char*) { return false; }
 
 std::string default_pack_folder() {
     std::error_code error;
@@ -212,8 +211,6 @@ void restart() {
     SDL_PushEvent(&quit);
 }
 
-bool read_line(const std::string&, const std::string&) { return false; }
-void write_lines(std::FILE*) {}
 bool convert_old_file(bw_desktop::Lines&) { return false; }
 
 }  // namespace bw_platform
@@ -230,16 +227,13 @@ extern "C" void bluewake_settings_load(void) {
     if (chosen == nullptr && home != nullptr)
         legacy = std::string(home) + "/Library/Application Support/Wind Waker Recomp/settings.ini";
     bw_desktop::load(path, legacy);
-    // Fast sound, and Jump & Sprint off (#71), unless the file or the launch
-    // says otherwise.
-    bw_desktop::env_default("BLUEWAKE_DSP_MODE", "hle");
-    bw_desktop::env_default("BLUEWAKE_JUMP_BUTTON", "0");
-    bw_desktop::env_default("BLUEWAKE_SPRINT_SPEED", "1");
     // Safe mode: --safe-mode, or a launch that never got to a clean exit
     // (linux_entry.c sets BLUEWAKE_SAFE_MODE).
-    const char* safe = std::getenv("BLUEWAKE_SAFE_MODE");
-    if (safe != nullptr && safe[0] != '\0' && safe[0] != '0')
+    if (bw_desktop::env_on("BLUEWAKE_SAFE_MODE", false))
         bw_desktop::apply_safe_mode();
+    // The defaults the game must not take its own for (settings_table.h's
+    // fill): Fast sound, and Jump & Sprint off (#71).
+    bw_desktop::fill_defaults();
 }
 
 extern "C" bool bluewake_settings_restart_requested(void) { return g_restart_requested; }

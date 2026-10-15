@@ -66,9 +66,6 @@ namespace {
 std::string g_data_dir;
 std::vector<wchar_t> g_environment;  // as BlueWake was started, for Restart
 RestartRequest g_restart;
-// The window's size and place, as the file keeps them (DOL_AURORA_WINDOW and
-// BLUEWAKE_WINDOW_POSITION) and as the player leaves them.
-int g_window_w, g_window_h, g_window_x = INT_MIN, g_window_y = INT_MIN;
 Uint64 g_first_frame_at;
 float g_font_scale = 1.0f;  // the scale the UI font was drawn at (see load_font)
 
@@ -115,7 +112,9 @@ bool on_a_monitor(int x, int y) {
            MonitorFromPoint(corner, MONITOR_DEFAULTTONULL) != nullptr;
 }
 
-// Remember the window's place and size as the player leaves them.
+// Remember the window's place and size as the player leaves them
+// (DOL_AURORA_WINDOW and BLUEWAKE_WINDOW_POSITION, settings_table.h's
+// Windows-only rows).
 void track_window(SDL_Window* w) {
     const SDL_WindowFlags flags = SDL_GetWindowFlags(w);
     if (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MINIMIZED | SDL_WINDOW_MAXIMIZED))
@@ -124,15 +123,19 @@ void track_window(SDL_Window* w) {
     if (!SDL_GetWindowPosition(w, &x, &y) || !SDL_GetWindowSize(w, &width, &height))
         return;
     static bool first = true;
-    const bool moved = x != g_window_x || y != g_window_y || width != g_window_w || height != g_window_h;
-    g_window_x = x;
-    g_window_y = y;
-    g_window_w = width;
-    g_window_h = height;
+    static int last_x, last_y, last_w, last_h;
+    const bool moved = x != last_x || y != last_y || width != last_w || height != last_h;
+    last_x = x;
+    last_y = y;
+    last_w = width;
+    last_h = height;
     // Where it opened is what the file already holds.
-    if (moved && !first)
-        bw_desktop::mark_dirty();
-    first = false;
+    if (first || !moved) {
+        first = false;
+        return;
+    }
+    bw_desktop::set_env(kBwWindowKey, std::to_string(width) + "x" + std::to_string(height));
+    bw_desktop::set_env(kBwWindowPositionKey, std::to_string(x) + "," + std::to_string(y));
 }
 
 // Start BlueWake again, with the command line and environment it began with,
@@ -309,17 +312,6 @@ void menu_opened(bool open) {
 
 bool pauses_game() { return false; }
 
-// Fast transitions, Quick doors and Jump & Sprint, which Mac and Linux apply at
-// once, are taken at the next launch on Windows, as they always have been.
-bool waits_for_launch(const char* key) {
-    static const char* const kKeys[] = {"BLUEWAKE_FAST_FORWARD", "BLUEWAKE_QUICK_DOORS", "BLUEWAKE_JUMP_BUTTON",
-                                        "BLUEWAKE_SPRINT_SPEED"};
-    for (const char* k : kKeys)
-        if (std::strcmp(key, k) == 0)
-            return true;
-    return false;
-}
-
 std::string default_pack_folder() { return ::default_pack_folder(); }
 
 void open_folder(const std::string& path) {
@@ -355,25 +347,6 @@ void restart() {
         std::fprintf(stderr, "[windows] restart refused: settings save or quit request failed\n");
 }
 
-bool read_line(const std::string& key, const std::string& value) {
-    if (key == kBwWindowKey) {
-        std::sscanf(value.c_str(), "%dx%d", &g_window_w, &g_window_h);
-        return true;
-    }
-    if (key == kBwWindowPositionKey) {
-        std::sscanf(value.c_str(), "%d,%d", &g_window_x, &g_window_y);
-        return true;
-    }
-    return false;
-}
-
-void write_lines(std::FILE* file) {
-    if (g_window_w > 0 && g_window_h > 0)
-        std::fprintf(file, "%s=%dx%d\n", kBwWindowKey, g_window_w, g_window_h);
-    if (g_window_x != INT_MIN && g_window_y != INT_MIN)
-        std::fprintf(file, "%s=%d,%d\n", kBwWindowPositionKey, g_window_x, g_window_y);
-}
-
 // A file from before the menus were shared (aspect=, option.NAME=...), as the
 // shared lines (settings_file.h).
 bool convert_old_file(bw_desktop::Lines& lines) { return bw_settings_convert_old(lines, ::default_pack_folder()); }
@@ -398,24 +371,13 @@ extern "C" void bw_settings_load(const char* data_dir) {
     // Safe mode: --safe-mode, or a launch that never got to a clean exit.
     if (bw_desktop::env_on("BLUEWAKE_SAFE_MODE", false) || bw_launch_pending((g_data_dir + "launch.pending").c_str()))
         bw_desktop::apply_safe_mode();
+    // Every default is put in the environment, as Windows always has, so the
+    // file the menu writes is whole (settings_table.h's fill).
+    bw_desktop::fill_defaults();
 }
 
 extern "C" void bw_settings_apply_launch(void) {
     using bw_desktop::env_default;
-    // Windows' own defaults, where neither the file nor the command line said:
-    // the picture keeps its shape, and the two door settings start off
-    // (settings_table.h has them on for Mac and Linux).
-    env_default("DOL_AURORA_ASPECT_FIT", "1");
-    env_default("BLUEWAKE_FAST_FORWARD", "0");
-    env_default("BLUEWAKE_QUICK_DOORS", "0");
-    // The frames a fade skips follow Fast transitions; both still work on their own.
-    env_default("BLUEWAKE_FADE_FRAMES", bw_desktop::env_on("BLUEWAKE_FAST_FORWARD", false) ? "6" : "0");
-    // The table's defaults for the rest, so every setting the menu shows and
-    // the file keeps has a value, and the texture filtering stays the game's
-    // own until it is asked for.
-    for (const bw_settings::Setting& s : bw_settings::kSettings)
-        if (s.fallback[0] != '\0' && std::strcmp(s.key, "DOL_AURORA_FORCE_ANISO") != 0)
-            env_default(s.key, s.fallback);
     // BLUEWAKE_STAGE_SELECT=1 on the command line arms it for this session (the
     // stage select takes either key, stage_select.h); the file keeps its toggle.
     if (const char* armed = std::getenv("BLUEWAKE_STAGE_SELECT"); armed != nullptr && armed[0] != '\0')
@@ -435,25 +397,30 @@ extern "C" void bw_settings_apply_launch(void) {
     CreateDirectoryA((g_data_dir + "Load").c_str(), nullptr);
     CreateDirectoryA((g_data_dir + "Load\\Textures").c_str(), nullptr);
     CreateDirectoryA(default_pack_folder().c_str(), nullptr);
-    int width = g_window_w, height = g_window_h;
-    if (width < 320 || height < 240)
+    // The window's size as it was left, or one that suits this screen for this
+    // session (the file keeps what it had).
+    int width = 0, height = 0;
+    if (std::sscanf(bw_desktop::env(kBwWindowKey).c_str(), "%dx%d", &width, &height) != 2 || width < 320 ||
+        height < 240) {
         default_window(aspect_ratio(bw_desktop::env("BLUEWAKE_ASPECT", "4:3")), &width, &height);
-    env_default(kBwWindowKey, std::to_string(width) + "x" + std::to_string(height));
+        bw_desktop::launch_choice(kBwWindowKey, std::to_string(width) + "x" + std::to_string(height));
+    }
     // Where the window was last time, for the host to create it there
     // (runtime/host/src/main.c): Aurora shows the window before its first
     // frame, and nothing moves it after. Otherwise it opens centred: the first
     // launch, a spot no longer on a monitor, or a fullscreen start, which keeps
     // the display it always had. Aurora takes no negative position, so a spot
-    // left of or above the main display opens centred too.
-    if (!bw_desktop::env_on("DOL_AURORA_FULLSCREEN", false) && g_window_x != INT_MIN && g_window_y != INT_MIN) {
-        if (!on_a_monitor(g_window_x, g_window_y))
-            std::fprintf(stderr, "[windows] window centred: %d,%d is no longer on a monitor\n", g_window_x,
-                         g_window_y);
-        else if (g_window_x < 0 || g_window_y < 0)
-            std::fprintf(stderr, "[windows] window centred: Aurora cannot open it at %d,%d (negative)\n",
-                         g_window_x, g_window_y);
-        else
-            env_default(kBwWindowPositionKey, std::to_string(g_window_x) + "," + std::to_string(g_window_y));
+    // left of or above the main display opens centred too. The file keeps the
+    // spot either way.
+    int x = 0, y = 0;
+    if (std::sscanf(bw_desktop::env(kBwWindowPositionKey).c_str(), "%d,%d", &x, &y) == 2) {
+        const bool fullscreen = bw_desktop::env_on("DOL_AURORA_FULLSCREEN", false);
+        if (!fullscreen && !on_a_monitor(x, y))
+            std::fprintf(stderr, "[windows] window centred: %d,%d is no longer on a monitor\n", x, y);
+        else if (!fullscreen && (x < 0 || y < 0))
+            std::fprintf(stderr, "[windows] window centred: Aurora cannot open it at %d,%d (negative)\n", x, y);
+        if (fullscreen || !on_a_monitor(x, y) || x < 0 || y < 0)
+            bw_desktop::launch_choice(kBwWindowPositionKey, "");
     }
 }
 
