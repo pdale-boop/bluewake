@@ -81,8 +81,8 @@ inline constexpr Setting kSettings[] = {
     {"BLUEWAKE_HAPTICS_STRENGTH", "haptics_strength", Kind::Int, "80", 0, 100, "Vibration strength", Tab::Controls, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_HAPTICS_TRIGGERS", "haptics_triggers", Kind::Bool, "1", 0, 0, "Trigger feedback (Xbox impulse triggers, DualSense trigger vibration)", Tab::Controls, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     {"BLUEWAKE_SPRINT_SPEED", "sprint_speed", Kind::Float, "1", 0, 0, nullptr, Tab::Gameplay, false, Control::None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
-    // The inverts are not greyed out with the direct camera off: an invert the
-    // player ticked works either way (Windows' behaviour, the agreed one).
+    // The inverts are not greyed out with the direct camera off. Whether they then
+    // reach the game's own camera still differs (desktop_menu.cpp, apply_controller).
     {"BLUEWAKE_CLIMB", "climb", Kind::Bool, "0", 0, 0, "Wall climbing (experimental)", Tab::Gameplay, false, Control::Switch, nullptr, nullptr, "Climbing", nullptr, nullptr, nullptr},
     {"BLUEWAKE_CLIMB_STAMINA", "climb_stamina", Kind::Float, "12", 4.f, 30.f, "Climbing stamina", Tab::Gameplay, false, Control::Slider, nullptr, "BLUEWAKE_CLIMB", nullptr, "%.0f seconds", "%.0f", nullptr},
     {"BLUEWAKE_FOREST_WATER_KEEP_TREES", "forest_water_keep_trees", Kind::Bool, "0", 0, 0, "Keep watered trees when time runs out", Tab::Gameplay, false, Control::Switch, "Forest Water still expires. Refill and continue with the remaining trees.", nullptr, "Forest Water Challenge", nullptr, nullptr, nullptr},

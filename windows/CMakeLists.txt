@@ -79,6 +79,8 @@ set(BLUEWAKE_HOST_SOURCES
     ${BLUEWAKE_HOST_SRC}/audio_watch.c
     ${BLUEWAKE_HOST_SRC}/fps_watch.c
     ${BLUEWAKE_HOST_SRC}/game_options.c
+    ${BLUEWAKE_HOST_SRC}/desktop_menu.cpp
+    ${BLUEWAKE_HOST_SRC}/desktop_settings.cpp
     ${BLUEWAKE_HOST_SRC}/mouse_camera.c)
 
 # The manifest (DPI awareness, long paths, UTF-8 code page) is merged into the

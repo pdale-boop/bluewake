@@ -263,3 +263,23 @@ inline BwSettingsLines bw_settings_write_new(const Settings& d, const std::strin
         lines.emplace_back(kBwPackFolderKey, d.texture_pack);
     return lines;
 }
+
+// A settings file in the old Windows format (aspect=, option.NAME=...) as the
+// desktop format's lines, its unknown lines after them: true when `lines` were
+// in the old format and are converted, false (and left alone) otherwise.
+inline bool bw_settings_convert_old(BwSettingsLines& lines, const std::string& default_pack) {
+    Settings old;
+    bool old_format = false;
+    for (const auto& [k, v] : lines)
+        if (k.rfind("BLUEWAKE_", 0) != 0 && k.rfind("DOL_", 0) != 0 && bw_settings_read_old(k, v, old))
+            old_format = true;
+    if (!old_format)
+        return false;
+    Settings ignored;
+    BwSettingsLines converted = bw_settings_write_new(old, default_pack);
+    for (const auto& [k, v] : lines)
+        if (!bw_settings_read_old(k, v, ignored))
+            converted.emplace_back(k, v);
+    lines = converted;
+    return true;
+}

@@ -48,6 +48,8 @@ add_executable(bluewake_host
     src/jump_button.c
     src/climb.c
     src/settings_menu.cpp
+    src/desktop_menu.cpp
+    src/desktop_settings.cpp
     src/sprint.c
     src/quick_doors.c
     src/haptics.c
