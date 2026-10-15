@@ -513,6 +513,12 @@ void apply_now(const char* key, const std::string& value) {
     }
     else if (std::strcmp(key, "BLUEWAKE_CLIMB") == 0 || std::strcmp(key, "BLUEWAKE_CLIMB_STAMINA") == 0)
         bluewake_climb_reload();
+    else if (std::strcmp(key, "BLUEWAKE_DPAD_MENUS") == 0)
+        bluewake_dpad_menus_reload();
+    // Everything the mouse, the sticks and gyro aiming do is read back together.
+    else if (std::strncmp(key, "BLUEWAKE_MOUSE_", 15) == 0 || std::strncmp(key, "BLUEWAKE_STICK_", 15) == 0 ||
+             std::strncmp(key, "BLUEWAKE_GYRO_", 14) == 0 || std::strcmp(key, "BLUEWAKE_AIM_INVERT_Y") == 0)
+        bluewake_mouse_camera_reload();
 }
 
 void hd_textures_section(); // drawn by the texture pack's row, defined below
@@ -543,6 +549,87 @@ bool draw_custom(const bw_settings::Setting& s) {
             set_smooth_motion(smooth == 0 ? nullptr : smooth == 3 ? "display" : smooth == 2 ? "3" : "1");
         if (s.note != nullptr)
             ImGui::TextDisabled("%s", s.note);
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_BUTTON_MAP") == 0) {
+        if (!ImGui::CollapsingHeader(s.label))
+            return true;
+        ImGui::TextWrapped("Choose which controller button presses each GameCube button. Picking one that is "
+                           "already used swaps the two.");
+        BwButtonMap map;
+        bw_button_map_parse(env(s.key), &map);
+        if (bw_button_map_ui(&map))
+            set_env(s.key, bw_button_map_format(map));
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_KEY_MAP") == 0) {
+        if (!ImGui::CollapsingHeader(s.label))
+            return true;
+        ImGui::TextWrapped("Choose the key for each GameCube button. Picking one that is already used swaps the two.");
+        BwKeyMap keys;
+        bw_key_map_parse(env(s.key), &keys);
+        if (bw_key_map_ui(&keys))
+            set_env(s.key, bw_key_map_format(keys));
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_MOUSE_BUTTONS") == 0) {
+        if (!ImGui::CollapsingHeader(s.label))
+            return true;
+        ImGui::TextWrapped("What each mouse button presses while the mouse is the camera. The first left click "
+                           "only hands the mouse to the game.");
+        BwMouseMap buttons;
+        bw_mouse_map_parse(env(s.key).c_str(), &buttons);
+        if (bw_mouse_map_ui(&buttons)) {
+            char text[64];
+            bw_mouse_map_format(&buttons, text, sizeof text);
+            set_env(s.key, text);
+            bluewake_mouse_camera_reload();
+        }
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_GYRO_AIM_SPEED") == 0) {
+        // The slider, and under it what the right stick does, which depends on
+        // the direct camera above rather than on this setting.
+        ImGui::BeginDisabled(!env_on("BLUEWAKE_GYRO_AIM", false));
+        if (setting_slider(s.key, s.shown, s.stored))
+            bluewake_mouse_camera_reload();
+        ImGui::EndDisabled();
+        ImGui::PushTextWrapPos();
+        ImGui::TextDisabled(env_on("BLUEWAKE_STICK_CAMERA", true)
+                                ? "Click the right stick for first person. When controller zoom is on, hold it and "
+                                  "move the stick up/down. In the telescope and Picto Box, the left stick or D-pad zooms."
+                                : "The game's right stick: its left and right follow Better Wind Waker's "
+                                  "\"Invert camera\" (Gameplay).");
+        ImGui::PopTextWrapPos();
+        return true;
+    }
+    if (std::strcmp(s.key, "BLUEWAKE_HAPTICS") == 0) {
+        // The three vibration settings move together: the kind, how strong, and
+        // the triggers, which only the shaped kind uses.
+        static const char* const kHaptics[] = {"Off", "Classic (the game's own on and off)",
+                                               "Enhanced (shaped, with the triggers)"};
+        const std::string mode = env(s.key, s.fallback);
+        int haptics = mode.empty() || mode[0] == 'e' || mode[0] == '1' ? 2 : mode[0] == 'c' ? 1 : 0;
+        if (bw_menu_combo(s.label, &haptics, kHaptics, 3)) {
+            set_env(s.key, haptics == 0 ? "off" : haptics == 1 ? "classic" : "enhanced");
+            bluewake_haptics_reload();
+        }
+        ImGui::BeginDisabled(haptics != 2);
+        float strength =
+            static_cast<float>(std::clamp(std::atoi(env("BLUEWAKE_HAPTICS_STRENGTH", "80").c_str()), 0, 100));
+        if (slider(setting("BLUEWAKE_HAPTICS_STRENGTH").label, &strength, 0.f, 100.f, "%.0f%%")) {
+            set_env("BLUEWAKE_HAPTICS_STRENGTH", std::to_string(static_cast<int>(std::lround(strength))));
+            bluewake_haptics_reload();
+            bluewake_haptics_preview();
+        }
+        bool triggers;
+        if (setting_checkbox("BLUEWAKE_HAPTICS_TRIGGERS", &triggers))
+            bluewake_haptics_reload();
+        ImGui::EndDisabled();
+        ImGui::TextDisabled(haptics == 2 ? "Hits, falls, explosions and quakes as the game times them, shaped by "
+                                           "their strength."
+                            : haptics == 1 ? "The motor on and off, as a GameCube controller's."
+                                           : "No vibration. (The game's own Vibration option turns it off too.)");
         return true;
     }
     if (std::strcmp(s.key, "DOL_AURORA_TEXTURE_PACK") == 0) {
@@ -677,13 +764,16 @@ void draw_setting(const bw_settings::Setting& s) {
     if (s.label == nullptr && s.control != bw_settings::Control::Custom)
         return;
     if (s.group != nullptr)
-        ImGui::SeparatorText(s.group);
+        s.group[0] == '\0' ? ImGui::Separator() : ImGui::SeparatorText(s.group);
     if (s.control == bw_settings::Control::Custom) {
         draw_custom(s);
         return;
     }
     const bool enabled = s.needs == nullptr || env_on(s.needs, bw_settings::default_on(setting(s.needs)));
-    ImGui::BeginDisabled(!enabled);
+    // Dead while another setting speaks for it: the A/B, X/Y and L/R swaps once
+    // the buttons have been remapped, which says where every button goes.
+    const bool dead = s.dead_when != nullptr && !env(s.dead_when).empty();
+    ImGui::BeginDisabled(!enabled || dead);
     bool changed = false;
     std::string value;
     switch (s.control) {
@@ -882,136 +972,10 @@ void apply_key_map() {
 }
 
 void controls_tab() {
-    BwButtonMap map;
-    const bool remapped = bw_button_map_parse(env("BLUEWAKE_BUTTON_MAP"), &map);
-    bool swap_ab, swap_xy, swap_lr;
-    ImGui::BeginDisabled(remapped);
-    setting_checkbox("BLUEWAKE_PAD_SWAP_AB", &swap_ab);
-    setting_checkbox("BLUEWAKE_PAD_SWAP_XY", &swap_xy);
-    ImGui::EndDisabled();
-    setting_checkbox("BLUEWAKE_PAD_SWAP_LR", &swap_lr);
-    bool dpad_menus;
-    if (setting_checkbox("BLUEWAKE_DPAD_MENUS", &dpad_menus)) {
-        bluewake_dpad_menus_reload();
-    }
-    if (ImGui::CollapsingHeader("Controller buttons")) {
-        ImGui::TextWrapped("Choose which controller button presses each GameCube button. Picking one that is "
-                           "already used swaps the two.%s", remapped ? " The swaps above are off while you use "
-                           "a custom layout." : "");
-        if (bw_button_map_ui(&map))
-            set_env("BLUEWAKE_BUTTON_MAP", bw_button_map_format(map));
-    }
-    if (ImGui::CollapsingHeader("Keyboard keys")) {
-        BwKeyMap keys;
-        bw_key_map_parse(env("BLUEWAKE_KEY_MAP"), &keys);
-        ImGui::TextWrapped("Choose the key for each GameCube button. Picking one that is already used swaps the two.");
-        if (bw_key_map_ui(&keys))
-            set_env("BLUEWAKE_KEY_MAP", bw_key_map_format(keys));
-    }
-    apply_controller_swaps();
-    bool mouse;
-    if (setting_checkbox("BLUEWAKE_MOUSE_CAMERA", &mouse)) {
-        bluewake_mouse_camera_reload();
-    }
-    ImGui::BeginDisabled(!mouse);
-    if (setting_slider("BLUEWAKE_MOUSE_SENSITIVITY", "%.2f", "%.2f")) {
-        bluewake_mouse_camera_reload();
-    }
-    bool invert;
-    if (setting_checkbox("BLUEWAKE_MOUSE_INVERT_Y", &invert)) {
-        bluewake_mouse_camera_reload();
-    }
-    if (ImGui::CollapsingHeader("Mouse buttons")) {
-        BwMouseMap buttons;
-        bw_mouse_map_parse(env("BLUEWAKE_MOUSE_BUTTONS").c_str(), &buttons);
-        ImGui::TextWrapped("What each mouse button presses while the mouse is the camera. The first left click "
-                           "only hands the mouse to the game.");
-        if (bw_mouse_map_ui(&buttons)) {
-            char text[64];
-            bw_mouse_map_format(&buttons, text, sizeof text);
-            set_env("BLUEWAKE_MOUSE_BUTTONS", text);
-            bluewake_mouse_camera_reload();
-        }
-    }
-    ImGui::EndDisabled();
-
-    ImGui::Separator();
-    bool stick;
-    if (setting_checkbox("BLUEWAKE_STICK_CAMERA", &stick)) {
-        bluewake_mouse_camera_reload();
-    }
-    ImGui::BeginDisabled(!stick);
-    if (setting_slider("BLUEWAKE_STICK_CAMERA_SPEED", "%.0f degrees a second", "%.0f")) {
-        bluewake_mouse_camera_reload();
-    }
-    if (setting_slider("BLUEWAKE_STICK_AIM_SPEED", "%.0f degrees a second", "%.0f")) {
-        bluewake_mouse_camera_reload();
-    }
-    bool stick_zoom;
-    if (setting_checkbox("BLUEWAKE_STICK_ZOOM", &stick_zoom)) {
-        bluewake_mouse_camera_reload();
-    }
-    ImGui::BeginDisabled(!stick_zoom);
-    if (setting_slider("BLUEWAKE_STICK_ZOOM_SPEED", "%.3fx", "%.3f")) {
-        bluewake_mouse_camera_reload();
-    }
-    ImGui::EndDisabled();
-    bool invert_x;
-    if (setting_checkbox("BLUEWAKE_STICK_CAMERA_INVERT_X", &invert_x)) {
-        bluewake_mouse_camera_reload();
-    }
-    bool invert_y;
-    if (setting_checkbox("BLUEWAKE_STICK_CAMERA_INVERT_Y", &invert_y)) {
-        bluewake_mouse_camera_reload();
-    }
-    ImGui::EndDisabled();
-    bool aim_invert;
-    if (setting_checkbox("BLUEWAKE_AIM_INVERT_Y", &aim_invert)) {
-        bluewake_mouse_camera_reload();
-    }
-    bool gyro;
-    if (setting_checkbox("BLUEWAKE_GYRO_AIM", &gyro)) {
-        bluewake_mouse_camera_reload();
-    }
-    ImGui::BeginDisabled(!gyro);
-    if (setting_slider("BLUEWAKE_GYRO_AIM_SPEED", "%.2fx", "%.2f")) {
-        bluewake_mouse_camera_reload();
-    }
-    ImGui::EndDisabled();
-    ImGui::PushTextWrapPos();
-    ImGui::TextDisabled(stick ? "Click the right stick for first person. When controller zoom is on, hold it and move the stick up/down. In the telescope and Picto Box, the left stick or D-pad zooms."
-                              : "The game's right stick: its left and right follow Better Wind Waker's "
-                                "\"Invert camera\" (Gameplay).");
-
-    // Haptics (haptics.h): the game's vibration rendered from what it asked
-    // for, with the triggers; or its own on-off motor; or none.
-    ImGui::SeparatorText("Haptics");
-    static const char* const kHaptics[] = {"Off", "Classic (the game's own on and off)",
-                                           "Enhanced (shaped, with the triggers)"};
-    const std::string mode = env("BLUEWAKE_HAPTICS", "enhanced");
-    int haptics = mode.empty() || mode[0] == 'e' || mode[0] == '1' ? 2 : mode[0] == 'c' ? 1 : 0;
-    if (bw_menu_combo("Controller vibration", &haptics, kHaptics, 3)) {
-        set_env("BLUEWAKE_HAPTICS", haptics == 0 ? "off" : haptics == 1 ? "classic" : "enhanced");
-        bluewake_haptics_reload();
-    }
-    ImGui::BeginDisabled(haptics != 2);
-    // Its label above it, at full width, as the other sliders.
-    float strength = static_cast<float>(std::clamp(std::atoi(env("BLUEWAKE_HAPTICS_STRENGTH", "80").c_str()), 0, 100));
-    if (slider(setting("BLUEWAKE_HAPTICS_STRENGTH").label, &strength, 0.f, 100.f, "%.0f%%")) {
-        set_env("BLUEWAKE_HAPTICS_STRENGTH", std::to_string(static_cast<int>(std::lround(strength))));
-        bluewake_haptics_reload();
-        bluewake_haptics_preview();
-    }
-    ImGui::EndDisabled();
-    ImGui::BeginDisabled(haptics != 2);
-    bool triggers;
-    if (setting_checkbox("BLUEWAKE_HAPTICS_TRIGGERS", &triggers)) {
-        bluewake_haptics_reload();
-    }
-    ImGui::EndDisabled();
-    ImGui::TextDisabled(haptics == 2   ? "Hits, falls, explosions and quakes as the game times them, shaped by their strength."
-                        : haptics == 1 ? "The motor on and off, as a GameCube controller's."
-                                       : "No vibration. (The game's own Vibration option turns it off too.)");
+    // Every control, its order, its greying out and its notes come from
+    // settings_table.h; the remap tables, gyro's line and the vibration block
+    // draw themselves (draw_custom).
+    draw_tab(bw_settings::Tab::Controls);
 
     // The keys as they are now (a remapped key shows its new name), in the same
     // table as on Windows; then the mouse and the controller, wrapped to fit.
@@ -1023,7 +987,9 @@ void controls_tab() {
                        "wheel zooms. Esc gives the mouse back, and Esc again opens this menu.");
     ImGui::SeparatorText("Controller");
     bw_controller_table();
-    ImGui::PopTextWrapPos();
+    // No PopTextWrapPos here: the wrap this used to close is now pushed and
+    // popped by gyro's row (draw_custom), and the body's own wrap is the tab
+    // bar's, closed where it was pushed.
 }
 
 // The folder in the system's file manager.
