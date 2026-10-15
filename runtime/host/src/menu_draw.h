@@ -22,7 +22,9 @@ std::string get(const char* key, const char* fallback); // the setting's value
 void put(const char* key, const std::string& value);    // set it, for the game and the file
 void changed(const bw_settings::Setting& setting);      // it was just edited
 bool custom(const bw_settings::Setting& setting);       // a row with a control of its own: drawn?
-void next_launch_note();                                // "(next launch)" beside a row
+// "(next launch)" beside a row, when this menu takes the setting at the next
+// launch: the table's next_launch, and on Windows a few more (win_settings.cpp).
+void next_launch_note(const bw_settings::Setting& setting);
 // What a list of choices offers: what is shown, what is stored, how many.
 // Kept per menu because some of it comes from Aurora's own headers.
 bool choices(const char* key, const char* const** shown, const char* const** stored, int* count);
@@ -120,8 +122,7 @@ inline void draw_setting(const bw_settings::Setting& s) {
     default:
         break;
     }
-    if (s.next_launch)
-        next_launch_note();
+    next_launch_note(s);
     if (s.note != nullptr)
         ImGui::TextDisabled("%s", s.note);
     if (edited)

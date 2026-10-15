@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The Windows settings file in the desktop format: KEY=VALUE lines with the
-// host's own names (settings_table.h), as the Mac and Linux menu writes them.
-// The menu still keeps its Settings (settings_state.h); this turns them into
-// those lines and back. A file in the old Windows format (aspect=,
-// keep_aspect=, option.NAME=...) is still read, so a player's settings carry
-// over, and win_settings.cpp copies it aside before the first new save.
-// Lines it doesn't know are kept as they were. No Windows calls here: the host
-// tests run it on every platform.
+// The bridge from the old Windows settings file to the desktop format:
+// KEY=VALUE lines with the host's own names (settings_table.h), as the Mac and
+// Linux menu writes them. The menu itself no longer goes through Settings (the
+// host's variables are the settings now, win_settings.cpp); a file in the old
+// Windows format (aspect=, keep_aspect=, option.NAME=...) is still read into
+// Settings and written out as those lines once, so a player's settings carry
+// over, and win_settings.cpp copies the old file aside first. Lines it doesn't
+// know are kept as they were. No Windows calls here: the host tests run it on
+// every platform.
 #pragma once
 #include "settings_state.h"
 #include "../../runtime/host/src/fps_position.h"

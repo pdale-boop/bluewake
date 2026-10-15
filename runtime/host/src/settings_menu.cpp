@@ -761,7 +761,10 @@ bool draw_custom(const bw_settings::Setting& s) {
 namespace bw_menu {
 std::string get(const char* key, const char* fallback) { return env(key, fallback); }
 void put(const char* key, const std::string& value) { set_env(key, value); }
-void next_launch_note() { restart_note(); }
+void next_launch_note(const bw_settings::Setting& s) {
+    if (s.next_launch)
+        restart_note();
+}
 bool custom(const bw_settings::Setting& s) { return draw_custom(s); }
 bool choices(const char* key, const char* const** shown, const char* const** stored, int* count) {
     Choices found{};
