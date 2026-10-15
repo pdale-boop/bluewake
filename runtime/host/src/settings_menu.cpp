@@ -7,6 +7,7 @@
 #include "atomic_file.h"
 #include "launch_marker.h"
 #include "settings_table.h"
+#include "menu_draw.h"
 
 // The host's modules are C.
 extern "C" {
@@ -754,84 +755,37 @@ bool draw_custom(const bw_settings::Setting& s) {
     return false;
 }
 
-// One row of a tab, from its line in settings_table.h: the control the table
-// asks for, greyed out when the setting it needs is off, its next-launch note
-// and its quiet line. Rows no one here draws are left to the tab itself.
-void draw_setting(const bw_settings::Setting& s) {
-    if (s.control == bw_settings::Control::None)
-        return;
-    // A plain control needs its label; a custom one knows what it draws.
-    if (s.label == nullptr && s.control != bw_settings::Control::Custom)
-        return;
-    if (s.group != nullptr)
-        s.group[0] == '\0' ? ImGui::Separator() : ImGui::SeparatorText(s.group);
-    if (s.control == bw_settings::Control::Custom) {
-        draw_custom(s);
-        return;
-    }
-    const bool enabled = s.needs == nullptr || env_on(s.needs, bw_settings::default_on(setting(s.needs)));
-    // Dead while another setting speaks for it: the A/B, X/Y and L/R swaps once
-    // the buttons have been remapped, which says where every button goes.
-    const bool dead = s.dead_when != nullptr && !env(s.dead_when).empty();
-    ImGui::BeginDisabled(!enabled || dead);
-    bool changed = false;
-    std::string value;
-    switch (s.control) {
-    case bw_settings::Control::Switch: {
-        bool on = false;
-        changed = setting_checkbox(s.key, &on);
-        value = on ? "1" : "0";
-        break;
-    }
-    case bw_settings::Control::Slider: {
-        changed = setting_slider(s.key, s.shown != nullptr ? s.shown : "%.2f",
-                                 s.stored != nullptr ? s.stored : "%.3f");
-        value = env(s.key, s.fallback);
-        break;
-    }
-    case bw_settings::Control::Dropdown: {
-        Choices choices{};
-        if (!choices_for(s.key, &choices))
-            break;
-        const std::string current = env(s.key, s.fallback);
-        int index = 0;
-        for (int i = 0; i < choices.count; ++i)
-            if (current == choices.stored[i])
-                index = i;
-        if (bw_menu_combo(s.label, &index, choices.shown, choices.count)) {
-            value = choices.stored[index];
-            set_env(s.key, value);
-            changed = true;
-        }
-        break;
-    }
-    default:
-        break;
-    }
-    if (s.next_launch)
-        restart_note();
-    if (s.note != nullptr)
-        ImGui::TextDisabled("%s", s.note);
-    ImGui::EndDisabled();
-    if (!changed)
-        return;
-    apply_now(s.key, value);
+// What the shared drawing (menu_draw.h) asks of this menu.
+} // namespace
+
+namespace bw_menu {
+std::string get(const char* key, const char* fallback) { return env(key, fallback); }
+void put(const char* key, const std::string& value) { set_env(key, value); }
+void next_launch_note() { restart_note(); }
+bool custom(const bw_settings::Setting& s) { return draw_custom(s); }
+bool choices(const char* key, const char* const** shown, const char* const** stored, int* count) {
+    Choices found{};
+    if (!choices_for(key, &found))
+        return false;
+    *shown = found.shown;
+    *stored = found.stored;
+    *count = found.count;
+    return true;
+}
+void changed(const bw_settings::Setting& s) {
+    apply_now(s.key, env(s.key, s.fallback));
     g_dirty = true;
     if (s.next_launch)
         g_restart_pending = true;
 }
+} // namespace bw_menu
 
-// Every plain row of one tab, in the table's order.
-void draw_tab(bw_settings::Tab tab) {
-    for (const bw_settings::Setting& s : bw_settings::kSettings)
-        if (s.tab == tab)
-            draw_setting(s);
-}
+namespace {
 
 void display_tab() {
     // Every setting here is a row in settings_table.h, drawn in the table's
     // order; only this button, which is an action and not a setting, is left.
-    draw_tab(bw_settings::Tab::Display);
+    bw_menu::draw_tab(bw_settings::Tab::Display);
 
     if (ImGui::Button("Reset the window"))
         reset_window();
@@ -914,12 +868,12 @@ void hd_textures_section() {
 void mods_tab() {
     // The texture pack, widescreen and Better Wind Waker all draw themselves
     // (draw_custom); the table gives their order.
-    draw_tab(bw_settings::Tab::Mods);
+    bw_menu::draw_tab(bw_settings::Tab::Mods);
 }
 void gameplay_tab() {
     // Every row, its heading and its note come from settings_table.h; the stage
     // select and Jump & Sprint draw themselves (draw_custom).
-    draw_tab(bw_settings::Tab::Gameplay);
+    bw_menu::draw_tab(bw_settings::Tab::Gameplay);
 }
 
 void apply_controller_swaps() {
@@ -975,7 +929,7 @@ void controls_tab() {
     // Every control, its order, its greying out and its notes come from
     // settings_table.h; the remap tables, gyro's line and the vibration block
     // draw themselves (draw_custom).
-    draw_tab(bw_settings::Tab::Controls);
+    bw_menu::draw_tab(bw_settings::Tab::Controls);
 
     // The keys as they are now (a remapped key shows its new name), in the same
     // table as on Windows; then the mouse and the controller, wrapped to fit.
@@ -1011,7 +965,7 @@ void open_folder(const std::string& path) {
 // Sound and files, as on Windows: the sound's engine (next launch), and where
 // the saves, settings and logs are.
 void sound_files_tab() {
-    draw_tab(bw_settings::Tab::SoundFiles);
+    bw_menu::draw_tab(bw_settings::Tab::SoundFiles);
     ImGui::Spacing();
     // Not settings: where this build keeps what it writes.
     ImGui::SeparatorText("Your files");
