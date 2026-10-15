@@ -470,20 +470,11 @@ const char* const kAnisoStored[] = {"1", "2", "4", "8", "16"};
 
 bool choices_for(const char* key, Choices* out) {
     if (std::strcmp(key, "DOL_AURORA_RENDER_SCALE") == 0) {
-        // Named by what the game draws: 480 lines for each step, and the width
-        // the chosen shape makes of them, so 21:9 doesn't claim 640 across.
-        static std::string text[5];
-        static const char* shown[5];
-        float wide = 4.f / 3.f;
-        if (int w = 0, h = 0; std::sscanf(g_aspect.c_str(), "%d:%d", &w, &h) == 2 && w > 0 && h > 0)
-            wide = static_cast<float>(w) / static_cast<float>(h);
-        text[0] = "Window";
-        shown[0] = text[0].c_str();
-        for (int i = 1; i < 5; ++i) {
-            const int lines = 480 * i;
-            text[i] = std::to_string(static_cast<int>(std::lround(lines * wide))) + "x" + std::to_string(lines);
-            shown[i] = text[i].c_str();
-        }
+        // By the multiple, not by pixels: the size the game asks for is its
+        // own (a GameCube mode is not always 480 lines), and the width comes
+        // from the widescreen mod when there is one and from the window when
+        // there is not, so any width by height here would be a guess.
+        static const char* const shown[] = {"Window", "1x", "2x", "3x", "4x"};
         *out = {shown, kScaleStored, 5};
         return true;
     }
