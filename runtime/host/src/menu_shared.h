@@ -49,6 +49,11 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
         const ImU32 chosen = ImGui::GetColorU32(ImGuiCol_Text);
         const ImU32 quiet = ImGui::GetColorU32(ImGuiCol_TextDisabled);
         const ImU32 outline = ImGui::GetColorU32(ImGuiCol_SliderGrab, 0.85f);
+        // The names are for the pointer only. As places a pad can land they put
+        // five stops between one setting and the next, and the cursor wandered
+        // sideways into them; a pad moves setting to setting and works the list
+        // on the slider below.
+        ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
         for (int i = 0; i < count; ++i) {
             const float text = ImGui::CalcTextSize(items[i]).x;
             const float x = std::clamp(step_x(origin.x, i) - text * 0.5f, origin.x, origin.x + width - text);
@@ -75,6 +80,7 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
             }
             list->AddText(ImVec2(x, origin.y), i == at || picked || lit ? chosen : quiet, items[i]);
         }
+        ImGui::PopItemFlag();
         ImGui::SetCursorScreenPos(origin);
         ImGui::Dummy(ImVec2(width, line));
     } else {
