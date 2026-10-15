@@ -1279,7 +1279,8 @@ void draw(void*) {
             const float right = corner.x + ImGui::GetContentRegionAvail().x - size;
             ImGui::SetCursorScreenPos(ImVec2(right, corner.y));
             ImGui::InvisibleButton("##close", ImVec2(size, size));
-            const bool over = ImGui::IsItemHovered();
+            // Shown for the pointer and for a pad or the keyboard landing on it.
+            const bool over = ImGui::IsItemHovered() || ImGui::IsItemFocused();
             if (ImGui::IsItemActivated())
                 open = false;
             const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
@@ -1303,6 +1304,10 @@ void draw(void*) {
                 kTabs[i].draw();
                 ImGui::PopTextWrapPos();
                 bw_menu_stick_scroll(pad.scroll);
+                // Down from the last setting comes back to the first, and up
+                // from the first to the last, so a pad never stops dead at an
+                // end of a long tab.
+                ImGui::NavMoveRequestTryWrapping(ImGui::GetCurrentWindow(), ImGuiNavMoveFlags_LoopY);
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }

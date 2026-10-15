@@ -55,7 +55,10 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
             const ImVec2 a(x - pad, origin.y - 1.f), b(x + text + pad, origin.y + line + 1.f);
             ImGui::SetCursorScreenPos(a);
             ImGui::InvisibleButton(items[i], ImVec2(b.x - a.x, b.y - a.y));
-            if (ImGui::IsItemHovered())
+            // An invisible button draws no highlight of its own, so a pad or
+            // the keyboard would land on it with nothing to see: the same
+            // outline marks the pointer being over it and the focus being on it.
+            if (ImGui::IsItemHovered() || ImGui::IsItemFocused())
                 list->AddRect(a, b, outline, ImGui::GetStyle().FrameRounding * 0.75f, 0, 1.f);
             if (ImGui::IsItemActivated()) {
                 *index = i;
