@@ -12,23 +12,137 @@
 #include <string>
 #include "button_remap.h"
 
-// A dropdown with its label on the right, or above it when the window is too
-// narrow for both.
+inline int bw_menu_slider_nudge(); // below: a controller's left and right on a slider
+
+// One setting's choices, with no dropdown: see bw_menu_combo's comment.
 inline bool bw_menu_combo(const char* label, int* index, const char* const* items, int count) {
-    const float avail = ImGui::GetContentRegionAvail().x;
-    if (ImGui::CalcTextSize(label).x + ImGui::GetStyle().ItemInnerSpacing.x <= avail * 0.5f) {
-        ImGui::SetNextItemWidth(std::max(80.f, avail * 0.48f));
-        return ImGui::Combo(label, index, items, count);
-    }
+    // The same control for every list, however long: the setting's name, the
+    // chosen one under it, and a slider with a step for each, which a
+    // controller nudges left and right like any other.
     ImGui::PushID(label);
     ImGui::TextWrapped("%s", label);
+    // Short enough and every choice is named over its own step, the chosen one
+    // bright and the rest quiet; otherwise only the chosen one is written, in
+    // the same place whichever it is, so there is one spot to read.
+    const int at = std::clamp(*index, 0, count > 0 ? count - 1 : 0);
+    const float width = ImGui::GetContentRegionAvail().x;
+    const float slot = count > 0 ? width / static_cast<float>(count) : width;
+    // Where the slider's steps fall, so the names sit over their own notch:
+    // the track is inset by half a handle at each end (below, and ImGui's own
+    // grab arithmetic), and the steps divide what is left.
+    const float handle = std::clamp(slot * 0.45f, 12.f, ImGui::GetFrameHeight() * 1.1f);
+    const float inset = handle * 0.5f + 2.f;
+    const auto step_x = [&](float origin_x, int i) {
+        return count > 1 ? origin_x + inset + (width - inset * 2.f) * (static_cast<float>(i) /
+                                                                      static_cast<float>(count - 1))
+                         : origin_x + width * 0.5f;
+    };
+    float widest = 0.f;
+    for (int i = 0; i < count; ++i)
+        widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
+    bool picked = false;
+    if (widest <= slot - ImGui::GetStyle().ItemInnerSpacing.x * 2.f) {
+        // Each name is its own target: hovering outlines it, clicking takes it.
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        const float line = ImGui::GetTextLineHeight(), pad = ImGui::GetStyle().ItemInnerSpacing.x;
+        ImDrawList* list = ImGui::GetWindowDrawList();
+        const ImU32 chosen = ImGui::GetColorU32(ImGuiCol_Text);
+        const ImU32 quiet = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+        const ImU32 outline = ImGui::GetColorU32(ImGuiCol_SliderGrab, 0.85f);
+        // The names are for the pointer only. As places a pad can land they put
+        // five stops between one setting and the next, and the cursor wandered
+        // sideways into them; a pad moves setting to setting and works the list
+        // on the slider below.
+        ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+        for (int i = 0; i < count; ++i) {
+            const float text = ImGui::CalcTextSize(items[i]).x;
+            const float x = std::clamp(step_x(origin.x, i) - text * 0.5f, origin.x, origin.x + width - text);
+            // The button is the whole cell its name sits in, so what lights up
+            // under the pointer is a block, not a line drawn round the words.
+            const ImVec2 a(std::max(origin.x, std::min(x - pad, step_x(origin.x, i) - slot * 0.5f + 1.f)),
+                           origin.y - 1.f);
+            const ImVec2 b(std::min(origin.x + width, std::max(x + text + pad, step_x(origin.x, i) + slot * 0.5f - 1.f)),
+                           origin.y + line + 1.f);
+            ImGui::SetCursorScreenPos(a);
+            ImGui::InvisibleButton(items[i], ImVec2(b.x - a.x, b.y - a.y));
+            // An invisible button draws nothing of its own, so a pad or the
+            // keyboard would land on it with nothing to see: the cell fills for
+            // the pointer being over it and for the focus being on it alike.
+            const bool lit = ImGui::IsItemHovered() || ImGui::IsItemFocused();
+            if (lit) {
+                const float round = ImGui::GetStyle().FrameRounding * 0.75f;
+                list->AddRectFilled(a, b, ImGui::GetColorU32(ImGuiCol_HeaderHovered), round);
+                list->AddRect(a, b, outline, round, 0, 1.f);
+            }
+            if (ImGui::IsItemActivated()) {
+                *index = i;
+                picked = true;
+            }
+            list->AddText(ImVec2(x, origin.y), i == at || picked || lit ? chosen : quiet, items[i]);
+        }
+        ImGui::PopItemFlag();
+        ImGui::SetCursorScreenPos(origin);
+        ImGui::Dummy(ImVec2(width, line));
+    } else {
+        ImGui::TextUnformatted(items[at]);
+    }
+    // A chooser, not a scrubber. ImGui keeps the behaviour but draws no handle:
+    // ours is drawn below, lit from above, over a track notched once per step.
+    // Narrow enough to point at a step rather than cover it.
+    const float grab_w = handle;
+    ImGui::PushStyleColor(ImGuiCol_SliderGrab, IM_COL32_BLACK_TRANS);
+    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, IM_COL32_BLACK_TRANS);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, grab_w);
     ImGui::SetNextItemWidth(-1.f);
-    const bool changed = ImGui::Combo("##value", index, items, count);
+    bool changed = ImGui::SliderInt("##value", index, 0, count - 1, "", ImGuiSliderFlags_NoInput);
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(2);
+
+    const ImVec2 lo = ImGui::GetItemRectMin(), hi = ImGui::GetItemRectMax();
+    ImDrawList* paint = ImGui::GetWindowDrawList();
+    const float round = ImGui::GetStyle().FrameRounding;
+    // Structure behind the slot: the housing is the frame ImGui drew, and
+    // inside it a sunk channel the handle rides in, dark under its top edge
+    // and light along its floor so the handle sits in something.
+    const float mid = (lo.y + hi.y) * 0.5f, channel = std::max(4.f, (hi.y - lo.y) * 0.22f);
+    const ImVec2 c0(lo.x + round, mid - channel * 0.5f), c1(hi.x - round, mid + channel * 0.5f);
+    paint->AddRectFilled(c0, c1, IM_COL32(0, 0, 0, 90), channel * 0.5f);
+    paint->AddLine(ImVec2(c0.x, c0.y), ImVec2(c1.x, c0.y), IM_COL32(0, 0, 0, 110), 1.f);
+    paint->AddLine(ImVec2(c0.x, c1.y), ImVec2(c1.x, c1.y), IM_COL32(255, 255, 255, 26), 1.f);
+    if (count > 1) {
+        const ImU32 tint = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.45f);
+        for (int i = 0; i < count; ++i)
+            paint->AddLine(ImVec2(step_x(lo.x, i), hi.y - 4.f), ImVec2(step_x(lo.x, i), hi.y - 2.f), tint, 1.f);
+    }
+    // The handle: a shadow beneath it, its face brighter at the top than the
+    // bottom, and a thin highlight along its top edge.
+    {
+        const float pad = 2.f;
+        const float sz = std::min(grab_w, hi.x - lo.x - pad * 2.f);
+        const float cx = step_x(lo.x, at);
+        const ImVec2 a(cx - sz * 0.5f, lo.y + pad), b(cx + sz * 0.5f, hi.y - pad);
+        const float r = (b.y - a.y) * 0.5f;
+        const ImVec4 face = ImGui::GetStyleColorVec4(ImGuiCol_SliderGrab);
+        const bool held = ImGui::IsItemActive();
+        const auto shade = [&](float k, float alpha) {
+            return ImGui::ColorConvertFloat4ToU32(
+                ImVec4(std::min(1.f, face.x * k), std::min(1.f, face.y * k), std::min(1.f, face.z * k), alpha));
+        };
+        paint->AddRectFilled(ImVec2(a.x, a.y + 2.f), ImVec2(b.x, b.y + 2.f), IM_COL32(0, 0, 0, 70), r); // shadow
+        paint->AddRectFilled(a, b, shade(held ? 1.15f : 0.95f, 1.f), r);                               // face
+        paint->AddRectFilled(a, ImVec2(b.x, a.y + (b.y - a.y) * 0.5f), shade(held ? 1.4f : 1.2f, 0.55f), r,
+                             ImDrawFlags_RoundCornersTop); // lit from above
+        paint->AddLine(ImVec2(a.x + r, a.y + 1.f), ImVec2(b.x - r, a.y + 1.f), IM_COL32(255, 255, 255, 60), 1.f);
+    }
+    if (const int step = bw_menu_slider_nudge()) {
+        const int moved = std::clamp(*index + step, 0, count - 1);
+        changed = changed || moved != *index;
+        *index = moved;
+    }
+    changed = changed || picked; // a name clicked above the slider
     ImGui::PopID();
     return changed;
 }
-
-inline int bw_menu_slider_nudge();  // defined below, with the rest of the controller's keys
 
 // A slider with its name above it and the bar the full width, which a
 // controller nudges left and right a twentieth of its range at a time.

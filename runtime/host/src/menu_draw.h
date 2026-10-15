@@ -104,7 +104,7 @@ inline void draw_control(const bw_settings::Setting& s) {
     case bw_settings::Control::Slider:
         edited = draw_slider(s);
         break;
-    case bw_settings::Control::Dropdown: {
+    case bw_settings::Control::Chooser: {
         const char* const* shown = nullptr;
         const char* const* stored = nullptr;
         int count = 0;

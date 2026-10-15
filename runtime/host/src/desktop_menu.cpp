@@ -82,7 +82,11 @@ double g_test_open_at = -1.0, g_test_open_for = 0.0;
 bool g_test_done = false;
 
 // What the lists of choices offer (bw_menu::choices): shown, and stored.
-const char* const kScaleShown[] = {"The window's pixels", "1x (480 lines)", "2x (960)", "3x (1440)", "4x (1920)"};
+// Render resolution by its multiple, not by pixels: the size the game asks
+// for is its own (a GameCube mode is not always 480 lines), and the width
+// comes from the widescreen mod when there is one and from the window when
+// there is not, so any width by height here would be a guess.
+const char* const kScaleShown[] = {"Window", "1x", "2x", "3x", "4x"};
 const char* const kScaleStored[] = {"0", "1", "2", "3", "4"};
 const char* const kAnisoShown[] = {"Off (the game's)", "2x", "4x", "8x", "16x"};
 const char* const kAnisoStored[] = {"1", "2", "4", "8", "16"};
@@ -352,10 +356,8 @@ bool draw_custom(const bw_settings::Setting& s) {
         return true;
     }
     if (std::strcmp(s.key, "DOL_AURORA_FRAME_INTERP") == 0) {
-        // The switch and its rate are one dropdown.
-        static const char* const kSmooth[] = {"Off (30, the game's)", "60 frames a second",
-                                              "120 frames a second (120 Hz displays)",
-                                              "Match the display (up to 240)"};
+        // The switch and its rate are one list.
+        static const char* const kSmooth[] = {"Off (30 FPS)", "60 FPS", "120 FPS", "Match the display"};
         const int requested = smooth_requested();
         int smooth = !env_on(s.key, false) ? 0 : requested == -1 ? 3 : requested >= 3 ? 2 : 1;
         if (bw_menu_combo(s.label, &smooth, kSmooth, 4))
@@ -500,13 +502,13 @@ bool draw_custom(const bw_settings::Setting& s) {
         return true;
     }
     if (std::strcmp(s.key, "BLUEWAKE_DSP_MODE") == 0) {
-        // Two ways to make the sound, as a pair of choices rather than a switch.
-        int exact = env(s.key, bw_settings::fallback_for(s)) == "lle" ? 1 : 0;
-        bool picked = ImGui::RadioButton("Fast (Dolphin's high-level Zelda sound)", &exact, 0);
-        picked |= ImGui::RadioButton("Exact (the sound chip's own program; slower)", &exact, 1);
-        if (picked)
+        // Two ways to make the sound: a switch, not a list of two.
+        bool exact = env(s.key, bw_settings::fallback_for(s)) == "lle";
+        if (bw_menu_checkbox("Exact sound (the sound chip's own program)", &exact))
             set_env(s.key, exact ? "lle" : "hle");
         restart_note();
+        ImGui::TextDisabled("Off: Dolphin's high-level Zelda sound, which is faster. On: the chip's own "
+                            "program, which is slower but exact.");
         return true;
     }
     if (std::strcmp(s.key, "BLUEWAKE_STAGE_SELECT_TOGGLE") == 0) {
@@ -980,7 +982,7 @@ void draw_menu(const bw_platform::Look& look) {
         case BW_MENU_NONE:
             break;
         }
-        // The game's B ends an edit, closes a dropdown, or closes the menu (menu_shared.h).
+        // The game's B ends an edit, or closes the menu (menu_shared.h).
         if (bw_menu_back(pad.back))
             open = false;
     }
