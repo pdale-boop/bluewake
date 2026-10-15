@@ -21,11 +21,30 @@ inline bool bw_menu_combo(const char* label, int* index, const char* const* item
     // controller nudges left and right like any other.
     ImGui::PushID(label);
     ImGui::TextWrapped("%s", label);
-    // The chosen one, written in the same place whichever it is: under the
-    // setting's name and above the slider, so only the words change as the
-    // slider moves, not where to look for them.
+    // Short enough and every choice is named over its own step, the chosen one
+    // bright and the rest quiet; otherwise only the chosen one is written, in
+    // the same place whichever it is, so there is one spot to read.
     const int at = std::clamp(*index, 0, count > 0 ? count - 1 : 0);
-    ImGui::TextUnformatted(items[at]);
+    const float width = ImGui::GetContentRegionAvail().x;
+    const float slot = count > 0 ? width / static_cast<float>(count) : width;
+    float widest = 0.f;
+    for (int i = 0; i < count; ++i)
+        widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
+    if (widest <= slot - ImGui::GetStyle().ItemInnerSpacing.x * 2.f) {
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImDrawList* list = ImGui::GetWindowDrawList();
+        const ImU32 chosen = ImGui::GetColorU32(ImGuiCol_Text);
+        const ImU32 quiet = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+        for (int i = 0; i < count; ++i) {
+            const float text = ImGui::CalcTextSize(items[i]).x;
+            const float x = origin.x + slot * (static_cast<float>(i) + 0.5f) - text * 0.5f;
+            list->AddText(ImVec2(std::clamp(x, origin.x, origin.x + width - text), origin.y),
+                          i == at ? chosen : quiet, items[i]);
+        }
+        ImGui::Dummy(ImVec2(width, ImGui::GetTextLineHeight()));
+    } else {
+        ImGui::TextUnformatted(items[at]);
+    }
     ImGui::SetNextItemWidth(-1.f);
     bool changed = ImGui::SliderInt("##value", index, 0, count - 1, "", ImGuiSliderFlags_NoInput);
     if (const int step = bw_menu_slider_nudge()) {

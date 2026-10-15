@@ -540,9 +540,7 @@ bool draw_custom(const bw_settings::Setting& s) {
     }
     if (std::strcmp(s.key, "DOL_AURORA_FRAME_INTERP") == 0) {
         // The switch and its rate are one dropdown.
-        static const char* const kSmooth[] = {"Off (30, the game's)", "60 frames a second",
-                                              "120 frames a second (120 Hz displays)",
-                                              "Match the display (up to 240)"};
+        static const char* const kSmooth[] = {"Off (30 FPS)", "60 FPS", "120 FPS", "Match the display"};
         const int requested = bw_smooth_requested(env("DOL_AURORA_FRAME_INTERP_STEPS", "1").c_str());
         int smooth = !env_on(s.key, false) ? 0 : requested == -1 ? 3 : requested >= 3 ? 2 : 1;
         if (bw_menu_combo(s.label, &smooth, kSmooth, 4))
