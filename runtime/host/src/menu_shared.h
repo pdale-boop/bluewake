@@ -15,11 +15,8 @@
 // A dropdown with its label on the right, or above it when the window is too
 // narrow for both.
 inline bool bw_menu_combo(const char* label, int* index, const char* const* items, int count) {
-    const float avail = ImGui::GetContentRegionAvail().x;
-    if (ImGui::CalcTextSize(label).x + ImGui::GetStyle().ItemInnerSpacing.x <= avail * 0.5f) {
-        ImGui::SetNextItemWidth(std::max(80.f, avail * 0.48f));
-        return ImGui::Combo(label, index, items, count);
-    }
+    // Its name above it and the list the full width, as the sliders: one left
+    // edge down the tab, and the chosen option never crowds the name.
     ImGui::PushID(label);
     ImGui::TextWrapped("%s", label);
     ImGui::SetNextItemWidth(-1.f);
