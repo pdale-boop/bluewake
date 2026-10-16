@@ -1,0 +1,560 @@
+From 408ac1ec632ac2db47e8e1f3e85306dd0f39f7b0 Mon Sep 17 00:00:00 2001
+From: pdale-boop <237306950+pdale-boop@users.noreply.github.com>
+Date: Fri, 16 Oct 2026 10:45:43 -0500
+Subject: [PATCH 1/3] Aurora: every in-between frame gets the HD look, not only
+ the first
+
+The HD look's effects (ambient occlusion, sun and cloud shadows, edge and
+torch light, far blur, bloom) run once a frame, keyed by the frame and
+whether it is an in-between one. Smooth Motion draws three in-between
+frames a game frame at 120 FPS, five at 180 and seven at 240, all with the
+same key, so only the first got the effects: the frames went with and
+without them in turn, and clouds, glow and shadows flickered above 60 FPS.
+The key now includes the in-between frame's step.
+---
+ GXRuntime/graphics/aurora/lib/gfx/common.cpp | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/common.cpp b/GXRuntime/graphics/aurora/lib/gfx/common.cpp
+index f5ab9cf6a3..66ce5ee5da 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/common.cpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/common.cpp
+@@ -1996,9 +1996,12 @@ static void render(wgpu::CommandEncoder& cmd, FramePacket& frame, RenderPass& pa
+   // the finished scene out at full size before it draws the HUD (Wind Waker
+   // does, every frame): bloom goes in just before that copy. Without such a
+   // copy, in the on-screen pass after the scene's last perspective draw; what
+-  // follows (the HUD, drawn flat) is drawn after it.
++  // follows (the HUD, drawn flat) is drawn after it. Each in-between frame
++  // (Smooth Motion: three a game frame at 120 FPS, five at 180, seven at 240) is a frame of
++  // its own here, so every one of them gets it, not only the first.
+   static uint64_t bloomedFrame = UINT64_MAX;
+-  const uint64_t frameKey = frame.frameId * 2 + (frame_interp::encoding_interpolated() ? 1 : 0);
++  const uint64_t frameKey = frame.frameId * (frame_interp::kMaxSteps + 1) +
++                            (frame_interp::encoding_interpolated() ? 1 + g_replayStep : 0);
+   const bool efbPass = !passInfo.offscreen && passInfo.colorView.Get() == webgpu::g_frameBuffer.view.Get();
+   const bool bloomBeforeCopy = post_fx::any_enabled() && efbPass && bloomedFrame != frameKey &&
+                                passInfo.resolveTarget && !gx::is_depth_format(passInfo.resolveFormat) &&
+-- 
+2.56.0
+
+
+From 4e8c27671ef8c2e884c04ff6f9442b097aa1b70b Mon Sep 17 00:00:00 2001
+From: pdale-boop <237306950+pdale-boop@users.noreply.github.com>
+Date: Fri, 16 Oct 2026 10:27:00 -0500
+Subject: [PATCH 2/3] Aurora: the HD look's in-between frames see through the
+ in-between camera
+
+The HD look's shadows and lights (sun and cloud shadows, edge light, torch
+light) are worked out from the game's camera, which the game thread sets at
+each retrace and the render thread read when it drew the effects. With
+Smooth Motion an in-between frame's scenery is where the camera was part of
+the way from the frame before, but its effects were drawn from the latest
+camera, so as the camera turned the shadows slid against the scenery.
+
+The real frame's effects now keep the camera they were drawn from with the
+frame, and each in-between frame draws from that camera moved as its
+matrices move the scenery: frame_interp's camera motion D and its part P at
+the step give the inverse view V^-1 * D * P^-1. The time for the cloud
+shadows' drift goes between the two frames' as well. Without a camera motion
+for the frame (its scenery blended from each draw's own matrices) an
+in-between frame keeps the real frame's camera, as before.
+---
+ GXRuntime/graphics/aurora/lib/gfx/common.cpp  | 37 +++++++++-
+ .../graphics/aurora/lib/gfx/frame_interp.cpp  | 27 +++++++
+ .../graphics/aurora/lib/gfx/frame_interp.hpp  | 14 ++++
+ GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp | 73 +++++++++----------
+ GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp | 23 +++++-
+ 5 files changed, 131 insertions(+), 43 deletions(-)
+
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/common.cpp b/GXRuntime/graphics/aurora/lib/gfx/common.cpp
+index 66ce5ee5da..d43157e010 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/common.cpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/common.cpp
+@@ -256,6 +256,13 @@ struct FramePacket {
+   bool interpolate = false;
+   int interpSteps = 1;
+   uint64_t gameFrame = 0;
++  // The camera the real frame's HD look (post_fx) was drawn from, the time of
++  // the real frame's before it, and each in-between frame's camera relative to
++  // it (see post_camera()).
++  post_fx::Camera postCamera;
++  bool havePostCamera = false;
++  float previousSeconds = 0.f;
++  std::array<frame_interp::CameraStep, frame_interp::kMaxSteps> cameraSteps{};
+ };
+ 
+ static std::array<FramePacket, FrameSlotCount> g_framePackets;
+@@ -1696,6 +1703,8 @@ void end_frame(EndFrameCallback callback) {
+   frame.interpolate = frame.presents && !frame.continuation && interpSlot.staging != nullptr &&
+                       !interpSlot.overflowed && frame_interp::frame_verdict();
+   frame.interpSteps = frame_interp::frame_steps();
++  if (frame.interpolate)
++    frame_interp::camera_steps(frame.cameraSteps.data());
+   if (frame_interp::tracing() || g_presentLog ||
+       (frame.interpolate && frame_interp::dump_frame(frame_interp::game_frame_number()))) {
+     Log.info("In-between data for game frame {}: {} bytes of constants and {} of vertices, {} blocks did not fit; "
+@@ -1914,6 +1923,30 @@ static void encode_op(wgpu::CommandEncoder& cmd, FramePacket& frame, const Frame
+   }
+ }
+ 
++// The camera the HD look's effects are drawn from (post_fx). The real frame
++// takes the one the game set last and keeps it; an in-between frame takes
++// that one moved where its matrices put the scenery (frame_interp's
++// CameraStep), at its own time between the two frames'. Drawn from the latest
++// camera instead, an in-between frame's shadows sat where the next frame's
++// camera sees them, and slid against the scenery as the camera turned.
++static post_fx::Camera post_camera(FramePacket& frame) {
++  if (!frame_interp::encoding_interpolated()) {
++    static float lastSeconds = 0.f;
++    frame.postCamera = post_fx::current_camera();
++    frame.havePostCamera = true;
++    frame.previousSeconds = lastSeconds;
++    lastSeconds = frame.postCamera.view[16];
++    return frame.postCamera;
++  }
++  if (!frame.havePostCamera)
++    return post_fx::current_camera();
++  const auto& step = frame.cameraSteps[std::clamp(g_replayStep, 0, frame_interp::kMaxSteps - 1)];
++  const float now = frame.postCamera.view[16];
++  const float before = frame.previousSeconds;
++  const float seconds = now > before && now - before < 0.25f ? before + (now - before) * step.t : now;
++  return post_fx::moved_camera(frame.postCamera, step.relative, seconds);
++}
++
+ static void render(wgpu::CommandEncoder& cmd, FramePacket& frame, RenderPass& passInfo, uint32_t passIndex) {
+   ZoneScoped;
+   if (!passInfo.sealed) {
+@@ -2026,13 +2059,13 @@ static void render(wgpu::CommandEncoder& cmd, FramePacket& frame, RenderPass& pa
+   if (bloomBeforeCopy) {
+     post_fx::encode(cmd, passInfo.copySourceView, passInfo.copySourceDepthView, passInfo.targetSize,
+                     webgpu::g_frameBuffer.texture.GetFormat(), passInfo.colorView, passInfo.resolveView,
+-                    passInfo.msaaSamples);
++                    passInfo.msaaSamples, post_camera(frame));
+     bloomedFrame = frameKey;
+   }
+   if (split != SIZE_MAX) {
+     post_fx::encode(cmd, passInfo.copySourceView, passInfo.copySourceDepthView, passInfo.targetSize,
+                     webgpu::g_frameBuffer.texture.GetFormat(), passInfo.colorView, passInfo.resolveView,
+-                    passInfo.msaaSamples);
++                    passInfo.msaaSamples, post_camera(frame));
+     bloomedFrame = frameKey;
+     if (split < passInfo.commands.size()) {
+       auto attachmentsAfter = attachments;
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp
+index 0fcb44b28e..a9179e13c6 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp
+@@ -2282,6 +2282,33 @@ bool frame_verdict() noexcept {
+   return true;
+ }
+ 
++bool camera_steps(CameraStep out[kMaxSteps]) noexcept {
++  const Motion* camera = enabled() ? camera_motion() : nullptr;
++  bool moved = camera != nullptr;
++  for (int step = 0; step < kMaxSteps; ++step) {
++    CameraStep& result = out[step];
++    result.t = step < g_frameSteps ? static_cast<float>(step_weight(step)) : 1.f;
++    for (int r = 0; r < 3; ++r)
++      for (int c = 0; c < 4; ++c)
++        result.relative[r][c] = r == c ? 1.f : 0.f;
++    if (!moved || step >= g_frameSteps)
++      continue;
++    // The step's view is P * D^-1 * V for the real frame's view V, the
++    // camera's motion D and its part P (blend_relative()); its inverse view,
++    // V^-1 * D * P^-1.
++    double back[3][4], relative[3][4];
++    if (!affine_inverse(camera->part[step], back)) {
++      moved = false;
++      continue;
++    }
++    affine_multiply(camera->m, back, relative);
++    for (int r = 0; r < 3; ++r)
++      for (int c = 0; c < 4; ++c)
++        result.relative[r][c] = static_cast<float>(relative[r][c]);
++  }
++  return moved;
++}
++
+ void end_game_frame() noexcept {
+   g_gameFrame.fetch_add(1, std::memory_order_relaxed);
+   if (!enabled()) {
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp
+index 5757323aed..ee83637517 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp
+@@ -141,6 +141,20 @@ bool tracing() noexcept;
+ // in-between frame.
+ bool frame_verdict() noexcept;
+ 
++// An in-between frame's camera, for what is drawn from the camera after the
++// frame (post_fx's shadows and lights): its inverse view is the real frame's
++// times `relative`, which puts it where the step's matrices put the scenery
++// (blend_relative()); and the step's blend weight from the frame before.
++struct CameraStep {
++  float relative[3][4];
++  float t;
++};
++// Recording thread, after frame_verdict(): each in-between step's camera
++// (frame_steps() of them). Without the frame's camera motion (its scenery was
++// blended from each draw's own matrices) `relative` stays the real frame's,
++// and this returns false.
++bool camera_steps(CameraStep out[kMaxSteps]) noexcept;
++
+ // At every present (a game frame boundary), with recording stopped.
+ void end_game_frame() noexcept;
+ 
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp b/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
+index 4429d4cfc0..345e538e4f 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
+@@ -27,7 +27,6 @@ std::atomic_bool g_edge{false};
+ std::atomic_bool g_torch{false};
+ float g_torchStrength = 0.35f;  // how bright a light's glow is
+ float g_torchRadiusScale = 3.f; // the glow's reach, times the radius the game lights with
+-constexpr uint32_t kMaxLights = 16;
+ // The game's point lights (aurora_set_point_lights): x, y, z, radius, r, g, b, flicker each.
+ std::array<float, kMaxLights * 8> g_lights{};
+ uint32_t g_lightCount = 0;
+@@ -1315,6 +1314,28 @@ void set_world_view(const float invView[12], float tanHalfFovy, float aspect, fl
+   g_cameraValid = nearPlane > 0.f && tanHalfFovy > 0.f && aspect > 0.f;
+ }
+ 
++Camera current_camera() noexcept {
++  Camera camera;
++  std::lock_guard lock{g_cameraMutex};
++  camera.view = g_camera;
++  camera.valid = g_cameraValid;
++  camera.lights = g_lights;
++  camera.lightCount = g_lightCount;
++  return camera;
++}
++
++Camera moved_camera(const Camera& camera, const float relative[3][4], float seconds) noexcept {
++  Camera moved = camera;
++  for (int r = 0; r < 3; ++r) {
++    const float* row = &camera.view[r * 4];
++    for (int c = 0; c < 4; ++c)
++      moved.view[r * 4 + c] =
++          row[0] * relative[0][c] + row[1] * relative[1][c] + row[2] * relative[2][c] + (c == 3 ? row[3] : 0.f);
++  }
++  moved.view[16] = seconds;
++  return moved;
++}
++
+ bool any_enabled() noexcept {
+   return bloom_enabled() || far_blur_enabled() || ambient_occlusion_enabled() || cloud_shadows_enabled() ||
+          sun_shadows_enabled() || edge_light_enabled() || torch_light_enabled();
+@@ -1322,7 +1343,7 @@ bool any_enabled() noexcept {
+ 
+ void encode(const wgpu::CommandEncoder& cmd, const wgpu::TextureView& scene, const wgpu::TextureView& depthView,
+             const wgpu::Extent3D& size, wgpu::TextureFormat format, const wgpu::TextureView& dst,
+-            const wgpu::TextureView& resolve, uint32_t msaaSamples) {
++            const wgpu::TextureView& resolve, uint32_t msaaSamples, const Camera& camera) {
+   // Ambient occlusion and the far blur need single-sample depth (the depth
+   // buffer is multisampled with MSAA).
+   if (ambient_occlusion_enabled() && g_module && depthView && msaaSamples == 1 && size.width >= 4 && size.height >= 4) {
+@@ -1335,47 +1356,28 @@ void encode(const wgpu::CommandEncoder& cmd, const wgpu::TextureView& scene, con
+     draw(cmd, "Ambient occlusion apply", g_aoApply, g_aoView[0], dst, true, resolve);
+   }
+   if (sun_shadows_enabled() && g_module && depthView && msaaSamples == 1) {
+-    std::array<float, 20> view;
+-    bool valid;
+-    {
+-      std::lock_guard lock{g_cameraMutex};
+-      view = g_camera;
+-      valid = g_cameraValid;
+-    }
+-    if (valid) {
++    if (camera.valid) {
+       const webgpu::gpu_prof::Zone zone{cmd, "Sun shadows"};
+       ensure_targets(size, format, msaaSamples);
+-      draw_with_view(cmd, "Sun shadows", g_sunPass, view, depthView, g_aoView[0], nullptr);
++      draw_with_view(cmd, "Sun shadows", g_sunPass, camera.view, depthView, g_aoView[0], nullptr);
+       draw(cmd, "Sun shadows blur (horizontal)", g_blurH, g_aoView[0], g_aoView[1], false);
+       draw(cmd, "Sun shadows blur (vertical)", g_blurV, g_aoView[1], g_aoView[0], false);
+       draw(cmd, "Sun shadows apply", g_aoApply, g_aoView[0], dst, true, resolve);
+     }
+   }
+   if (edge_light_enabled() && g_module && depthView && msaaSamples == 1) {
+-    std::array<float, 20> view;
+-    bool valid;
+-    {
+-      std::lock_guard lock{g_cameraMutex};
+-      view = g_camera;
+-      valid = g_cameraValid;
+-    }
+-    if (valid) {
++    if (camera.valid) {
+       const webgpu::gpu_prof::Zone zone{cmd, "Edge light"};
+       ensure_targets(size, format, msaaSamples);
+-      draw_with_view(cmd, "Edge light", g_edgePass, view, depthView, dst, resolve);
++      draw_with_view(cmd, "Edge light", g_edgePass, camera.view, depthView, dst, resolve);
+     }
+   }
+   if (torch_light_enabled() && g_module && depthView && msaaSamples == 1) {
+-    std::array<float, kTorchUniformSize / sizeof(float)> uniform{};
+-    bool valid;
+-    {
+-      std::lock_guard lock{g_cameraMutex};
+-      std::memcpy(uniform.data(), g_camera.data(), sizeof(g_camera));
+-      uniform[20] = static_cast<float>(g_lightCount);
+-      std::memcpy(uniform.data() + 24, g_lights.data(), sizeof(g_lights));
+-      valid = g_cameraValid && g_lightCount > 0;
+-    }
+-    if (valid) {
++    if (camera.valid && camera.lightCount > 0) {
++      std::array<float, kTorchUniformSize / sizeof(float)> uniform{};
++      std::memcpy(uniform.data(), camera.view.data(), sizeof(camera.view));
++      uniform[20] = static_cast<float>(camera.lightCount);
++      std::memcpy(uniform.data() + 24, camera.lights.data(), sizeof(camera.lights));
+       const webgpu::gpu_prof::Zone zone{cmd, "Torch light"};
+       ensure_targets(size, format, msaaSamples);
+       draw_with_uniform(cmd, "Torch light", g_torchPass, g_torchLayout, uniform.data(), sizeof(uniform), depthView,
+@@ -1383,17 +1385,10 @@ void encode(const wgpu::CommandEncoder& cmd, const wgpu::TextureView& scene, con
+     }
+   }
+   if (cloud_shadows_enabled() && g_module && depthView && msaaSamples == 1) {
+-    std::array<float, 20> view;
+-    bool valid;
+-    {
+-      std::lock_guard lock{g_cameraMutex};
+-      view = g_camera;
+-      valid = g_cameraValid;
+-    }
+-    if (valid) {
++    if (camera.valid) {
+       const webgpu::gpu_prof::Zone zone{cmd, "Cloud shadows"};
+       ensure_targets(size, format, msaaSamples);
+-      draw_with_view(cmd, "Cloud shadows", g_cloudPass, view, depthView, dst, resolve);
++      draw_with_view(cmd, "Cloud shadows", g_cloudPass, camera.view, depthView, dst, resolve);
+     }
+   }
+   if (far_blur_enabled() && g_module && depthView && msaaSamples == 1 && size.width >= 4 && size.height >= 4) {
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp b/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp
+index 931a7f2712..c3ae79460c 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <webgpu/webgpu_cpp.h>
+ 
++#include <array>
+ #include <cstdint>
+ 
+ // Effects drawn after the game's own frame (the Wind Waker HD look).
+@@ -66,12 +67,30 @@ void set_cloud_shadows(bool enabled) noexcept;
+ void set_world_view(const float invView[12], float tanHalfFovy, float aspect, float nearPlane, float seaLevel,
+                     float seconds) noexcept;
+ bool any_enabled() noexcept;
++// The game's point lights, at most (aurora_set_point_lights).
++constexpr uint32_t kMaxLights = 16;
++// What the effects drawn from the camera (sun and cloud shadows, edge and
++// torch light) are drawn with: the inverse view matrix's three rows, then
++// tan(fovy / 2), aspect, near, the sea's height and the time in seconds, then
++// the direction to the sun; and the point lights.
++struct Camera {
++  std::array<float, 20> view{};
++  bool valid = false;
++  std::array<float, kMaxLights * 8> lights{};
++  uint32_t lightCount = 0;
++};
++// The camera the game set last (aurora_set_world_view and the rest).
++Camera current_camera() noexcept;
++// `camera` moved for an in-between frame: its inverse view times `relative`
++// (the step's camera relative to the real frame's, frame_interp::camera_steps),
++// at `seconds`.
++Camera moved_camera(const Camera& camera, const float relative[3][4], float seconds) noexcept;
+ // Every effect that is on, in order (ambient occlusion, sun shadows, edge
+ // light, torch light, cloud shadows, far blur, bloom);
+-// depthView: the EFB's depth.
++// depthView: the EFB's depth; camera: the one the frame is drawn from.
+ void encode(const wgpu::CommandEncoder& cmd, const wgpu::TextureView& scene, const wgpu::TextureView& depthView,
+             const wgpu::Extent3D& size, wgpu::TextureFormat format, const wgpu::TextureView& dst,
+-            const wgpu::TextureView& resolve, uint32_t msaaSamples);
++            const wgpu::TextureView& resolve, uint32_t msaaSamples, const Camera& camera);
+ // scene: the EFB as a texture (resolved when multisampled), size: its size;
+ // dst: the EFB's color attachment, with msaaSamples samples, and resolve its
+ // single-sample copy when multisampled (null otherwise).
+-- 
+2.56.0
+
+
+From a9bec0ee340624279a149111493bf4ec5638cdff Mon Sep 17 00:00:00 2001
+From: pdale-boop <237306950+pdale-boop@users.noreply.github.com>
+Date: Fri, 16 Oct 2026 12:43:32 -0500
+Subject: [PATCH 3/3] Aurora: Smooth Motion pairs clouds and wave crests by
+ their own vertices
+
+With Smooth Motion, single clouds went see-through for an in-between frame
+or three every few seconds, still or moving, and the small wave crests on a
+calm sea flickered (chrissotraidis/bluewake#136). Both are drawn as copies
+of one shape with the view matrix and their own world positions
+(d_kankyo_rain's drawVrkumo and drawWave), so every copy has the same block
+and stands where the camera's motion carries any of them. Copies were then
+paired by their place in the list, which is the game's slots with the
+invisible ones left out: when one cloud faded out or came into view, every
+cloud after it was paired with its neighbour, and its in-between colours
+were blended toward the neighbour's alpha. The crests, up to 300 that come
+and go all the time, were paired that way most of the time.
+
+Such a copy now keeps the centre of its vertices, and is paired with the
+copy of the frame before whose centre is nearest, each once; a copy with
+none within 1000 units is new and drawn as it is. Found in a per-draw trace
+on Windows: cloud alpha jumps only where the number of clouds changed, each
+paired with the same place in the list.
+---
+ .../graphics/aurora/lib/gfx/frame_interp.cpp  | 67 +++++++++++++++++--
+ .../graphics/aurora/lib/gfx/frame_interp.hpp  |  5 ++
+ 2 files changed, 67 insertions(+), 5 deletions(-)
+
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp
+index a9179e13c6..70b449d77b 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.cpp
+@@ -92,6 +92,10 @@ struct Record {
+   uint8_t texcoordMask = 0;
+   std::array<float, 2> screenExtent{};
+   bool screenConsumed = false;
++  // DrawInput::centre, and whether a copy of this frame took it as its own.
++  bool haveCentre = false;
++  bool centreConsumed = false;
++  std::array<float, 3> centre{};
+ };
+ struct FrameRecords {
+   std::vector<gxc::VertexShaderConstants> pool;
+@@ -1422,6 +1426,8 @@ void capture_draw(const gxc::DrawPlan& plan, DrawInput& out, bool positionsWritt
+   out.screenSpace = screen_space_sprite(plan);
+   out.screenCenter = {};
+   out.screenExtent = {};
++  out.haveCentre = false;
++  out.centre = {};
+   if (out.key == 0)
+     return;
+   // Screen sprites and particles the host tagged: an untagged world draw of one
+@@ -1464,6 +1470,21 @@ void capture_draw(const gxc::DrawPlan& plan, DrawInput& out, bool positionsWritt
+           out.screenExtent[r] = high[r] - low[r];
+         }
+       }
++    } else if (plan.match_direct_position && !out.screenSpace && decoded > 0) {
++      // A cloud or a wave crest: each is drawn with the view matrix and its
++      // own world positions, so its copies have one block, and its vertices'
++      // centre is what tells them apart (see the copies in blend_draw()).
++      double sum[3] = {0.0, 0.0, 0.0};
++      for (size_t i = 0; i < decoded; ++i) {
++        const float* p = plan.vertices.data() + i * gxc::kVertexFloats + gxc::kVertexPosOffset / sizeof(float);
++        for (unsigned r = 0; r < 3; ++r)
++          sum[r] += p[r];
++      }
++      out.haveCentre = true;
++      for (unsigned r = 0; r < 3; ++r) {
++        out.centre[r] = static_cast<float>(sum[r] / double(decoded));
++        out.haveCentre = out.haveCentre && std::isfinite(out.centre[r]);
++      }
+     }
+     return;
+   }
+@@ -1522,7 +1543,8 @@ uint64_t used_matrix_rows(const gxc::DrawPlan& plan) noexcept {
+ 
+ static const gxc::VertexShaderConstants* match_draw(uint64_t key, uint64_t usedMatrixRows,
+                                                    const gxc::VertexShaderConstants& current, bool repeatsLastDraw,
+-                                                   const VertexSamples* samples, const DrawInput* screenSprite) {
++                                                   const VertexSamples* samples, const DrawInput* screenSprite,
++                                                   const DrawInput* centred) {
+   g_outcome = "no key";
+   g_blendRepeated = false;
+   const uint64_t serial = ++g_drawSerial;
+@@ -1579,6 +1601,11 @@ static const gxc::VertexShaderConstants* match_draw(uint64_t key, uint64_t usedM
+     record.position[2] = 0.f;
+     record.screenExtent = screenSprite->screenExtent;
+   }
++  if (centred != nullptr) {
++    auto& record = frame.records.back();
++    record.haveCentre = true;
++    record.centre = centred->centre;
++  }
+   ++g_frameCounts.draws;
+   KeyState& state = g_keys[key];
+   const uint32_t occurrence = state.occurrence++;
+@@ -1784,7 +1811,35 @@ static const gxc::VertexShaderConstants* match_draw(uint64_t key, uint64_t usedM
+   size_t pick = candidates;
+   // How far the camera's motion puts the nearest copy that stood still.
+   double nearestStill = HUGE_VAL;
+-  if (camera != nullptr) {
++  // Copies that share one block (each drawn with the view matrix and its own
++  // world positions: the sky's clouds, the wave crests at sea) all stand
++  // where the camera's motion carries any of them, so the same place in the
++  // list always passed, and the list is the game's slots with the invisible
++  // ones left out. A cloud fading out or coming into view shifted every copy
++  // after it onto its neighbour, whose colours its in-between frames then
++  // blended toward: a single cloud or crest flashing to its neighbour's alpha.
++  // Each is paired with the copy whose vertices' centre is nearest its own,
++  // once; with none near enough it is new, and drawn as it is.
++  const bool byCentre = uniformCopies && centred != nullptr;
++  if (byCentre) {
++    constexpr double kCentreReach = 1000.0; // world units; the boat under full sail goes 100 a frame
++    double best = kCentreReach * kCentreReach;
++    for (size_t i = 0; i < candidates; ++i) {
++      if (!copies[i].haveCentre || copies[i].centreConsumed)
++        continue;
++      double d = 0.0;
++      for (unsigned r = 0; r < 3; ++r) {
++        const double e = double(centred->centre[r]) - copies[i].centre[r];
++        d += e * e;
++      }
++      if (d < best) {
++        best = d;
++        pick = i;
++      }
++    }
++    if (pick < candidates)
++      range.first[pick].centreConsumed = true;
++  } else if (camera != nullptr) {
+     if (occurrence < candidates && carried(occurrence))
+       pick = occurrence;
+     else if (state.next < candidates && carried(state.next))
+@@ -1800,13 +1855,14 @@ static const gxc::VertexShaderConstants* match_draw(uint64_t key, uint64_t usedM
+   const bool placed = pick < candidates;
+   if (placed) {
+     state.next = static_cast<uint32_t>(pick + 1);
+-    frame.records.back().still = motion_error(*camera, here, copies[pick].position) <= tolerance;
++    frame.records.back().still =
++        camera != nullptr && motion_error(*camera, here, copies[pick].position) <= tolerance;
+     const auto& candidate = constantsOf(pick);
+     if (plausible_copy(pick)) {
+       previous = &candidate;
+       chosen = pick;
+     }
+-  } else {
++  } else if (!byCentre) {
+     // Without such a copy, a copy that stood still would have been carried
+     // here had it been this one, unless it has just started to move (an idle
+     // character swaying past the tolerance). Among copies that stood still
+@@ -2002,7 +2058,8 @@ const gxc::VertexShaderConstants* blend_draw(const DrawInput& input, const gxc::
+   const size_t recorded = frame.records.size();
+   const gxc::VertexShaderConstants* result = match_draw(input.key, input.usedMatrixRows, current, repeatsLastDraw,
+                                                         input.haveSamples ? &input.samples : nullptr,
+-                                                        input.screenSpace ? &input : nullptr);
++                                                        input.screenSpace ? &input : nullptr,
++                                                        input.haveCentre ? &input : nullptr);
+   g_currentTagged = false;
+   g_currentAge = 0;
+   if (pixel != nullptr)
+diff --git a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp
+index ee83637517..828425c482 100644
+--- a/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp
++++ b/GXRuntime/graphics/aurora/lib/gfx/frame_interp.hpp
+@@ -81,6 +81,11 @@ struct DrawInput {
+   bool screenSpace = false;
+   std::array<float, 2> screenCenter{};
+   std::array<float, 2> screenExtent{};
++  // An untagged direct-position draw in the scene (a cloud, a wave crest):
++  // the centre of its vertices, which tells apart copies that share one
++  // matrix (the view's).
++  bool haveCentre = false;
++  std::array<float, 3> centre{};
+ };
+ // `positionsWritten`: whether the game wrote an indexed draw's position array
+ // this frame or the one before (gxcore_draw's positions_written()). Only such
+-- 
+2.56.0
+

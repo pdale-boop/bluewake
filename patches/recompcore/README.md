@@ -151,3 +151,12 @@ Patch 0182 is RecompCore #41: the HD look's cloud shadows take the sea's place f
 depth far out on the sea made straight-edged steps (the "square" shadows on Vulkan, a hard band on Metal), with gradient
 noise turned per octave. The cloud, sun-shadow, ambient-occlusion and bloom passes add half an 8-bit step of dither so
 their smooth shades don't band on the sea. 0181 is taken by draft #342.
+
+Patch 0179 is pdale-boop's RecompCore #40, for BlueWake #136: Smooth Motion without the flicker in the HD look, the
+clouds and the wave crests. Every in-between frame gets the HD look's effects (only the first of three at 120 FPS did,
+and the first of five at 180); their shadows and lights come from the in-between frame's camera, moved as
+`frame_interp` moves the scenery, instead of the latest one the game set; and copies drawn with the view matrix and
+their own world positions (the sky's clouds, the wave crests at sea) are paired by the centre of their vertices
+instead of their place in the list, which shifted whenever one faded or came into view and blended a cloud toward its
+neighbour's alpha. It sits on RecompCore #39 (the wait for alpha-only pipelines, BlueWake #342's patch 0181) rebased on
+`bluewake-next` after #41, so this pin carries #37, #38, #39 and #41 as well.
