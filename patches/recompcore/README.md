@@ -160,3 +160,10 @@ their own world positions (the sky's clouds, the wave crests at sea) are paired 
 instead of their place in the list, which shifted whenever one faded or came into view and blended a cloud toward its
 neighbour's alpha. It sits on RecompCore #39 (the wait for alpha-only pipelines, BlueWake #342's patch 0181) rebased on
 `bluewake-next` after #41, so this pin carries #37, #38, #39 and #41 as well.
+
+Patch 0183 is pdale-boop's sun shadow map (`aurora_set_sun_shadow_map`). BlueWake turns it on with its sun shadows
+(`BLUEWAKE_HD_SUN_SHADOWS=1`, still off by default); `DOL_AURORA_SUN_SHADOW_MAP=0` keeps the screen's version alone. The HD look's sun shadows came from the screen, so something off screen cast nothing.
+With the map, each EFB pass's solid draws are drawn again from the sun into a depth map before the pass, with two
+fixed pipelines and each draw's own constants (no pipeline per draw), and each pixel's place in the world is looked up
+in it. Alpha-tested draws (leaves, fences) are left out and keep a few of the screen's steps. In an in-between frame the
+draws take their blended constants and the map that frame's camera.
