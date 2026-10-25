@@ -182,6 +182,48 @@ from the others in `mem1` only, at every checkpoint, with the CPU state identica
 never depends on, most likely frames copied from the GPU into guest RAM while the driver's shader cache was cold for
 that binary. Every other rendered run, and every headless run, matched.
 
+## 7. Without training, everywhere, and with more training
+
+**Untrained builds** (`--no-train`, both from the same commits; the tour, headless, i5-6500, three rounds, checkpoints
+identical): `main` 43.04, the full stack **45.97 (+6.8%)**, every stop +6.1 to +7.9%. The full stack's module is no
+bigger untrained (338.8 MB against 339.4), so the growth in §4 came from `main`'s profile applied to the new code, not
+from the code. Training itself is still worth about 25% (`main` 43.04 untrained, 53.99 trained).
+
+**The whole stage select, timed.** `scripts/stage_select_sweep.py` over all 468 places, `main` against the full stack,
+headless on the i5-6500, one place at a time with the builds alternating in chunks of 30, 600 play frames after Link
+arrives, `BLUEWAKE_LOOSE_REL_RETRACES=1` (the Wind Temple's R04 and R08), cost read as the median `[perf]` rate after
+arrival. The 30 places marked (before) ran from quest log 2 (before the Helmaroc King fight on this card), because the
+command-line warp keeps the file's own half of the story; the menu sets it. 463 places were timed on both builds:
+
+| Rooms | Places | Full stack against `main` (median) | Slower | Below +3% |
+| --- | ---: | ---: | ---: | ---: |
+| In the training tour | 39 | +7.0% | 0 | 0 |
+| Not in the training tour | 406 | +6.7% | 3 | 7 |
+
+So the REL inlining does not depend on training reaching a room. Every place ended the same way on both builds (the same
+outcome and end pc). The sweep's checkpoints cannot compare builds: each run starts with a card continue, and two
+continues of one build already differ (#450). Two of the three slower places are within noise (−1.3%, −0.9%). The
+third, "Before Master Sword" (32.22), is an idle cutscene wait at 400 to 670 retraces a second where every build runs
+the same 4,287,879 blocks: `main` 660, #480 594, + direct writes 417, + REL inlining with `main`'s profile 669, the same
+source trained 417. The same source is the fastest and the slowest build there, so it is code placement in a tight loop,
+not a cost of any change, and every build stays far above full speed.
+
+**Adding rooms to the training tour.** Every untrained room slower than the trained rooms' median in the sweep (the
+costliest first: SubD51, Hyrule Castle's inside, the warp maze, Sea sectors 2B and 2E, the Forsaken Fortress at night,
+Tower of the Gods rooms…), added to `TRAINING_TOUR`: TA with the costlier 10, TB with all 20. Three rotated rounds:
+
+| Where | TA (+10 rooms) | TB (+20 rooms) |
+| --- | ---: | ---: |
+| The default tour | +0.9% | +0.8% |
+| The 20 added rooms | +1.0% | +0.8% |
+| … the 10 TA trains | +0.8% | +0.6% |
+| … the 10 only TB trains | +1.2% | +1.0% |
+
+About +1%, and not specific to the rooms added: TA gains as much in rooms only TB trains, and 20 rooms are no better than
+10. Each added stop costs about 13 seconds of training on 16 threads (five playbacks at once), and proportionally more
+with fewer cores (one playback on four). **Open:** where the sweet spot is. Since the gain looks general rather than per
+room, trials with fewer stops (8 and 12 were suggested, or fewer) would show how much of the +1% a short addition keeps.
+
 ## Builds and branches
 
 - `pdale-boop/bluewake` `exp/gpr-direct`: #480 at `7d6a30d`, then `043495d` (direct frame writes) and `52583a4` (REL
@@ -195,4 +237,5 @@ that binary. Every other rendered run, and every headless run, matched.
 - A Steam Deck or another AMD CPU, Windows, and a Mac. All the numbers here are Intel x86-64.
 - A second independent training of the full stack, to put a number on profile luck. It moved results by about ±1% in
   §1, small against +8%.
+- The training-tour sweet spot (§7).
 - Hand play. The checkpoints match, but nobody has played these builds.
