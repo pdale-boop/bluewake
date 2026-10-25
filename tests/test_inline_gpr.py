@@ -37,29 +37,31 @@ class InlineGprTests(unittest.TestCase):
         self.assertEqual(gpr.transform(CALL, {0x80328F84, 0x80004004}), (CALL, 0))
         result, count = gpr.transform(CALL, {0x80328F84})
         self.assertEqual(count, 1)
-        self.assertIn('bw_direct_call_ready(ctx, 0x80328F84u)', result)
+        self.assertIn('bw_gpr_run(ctx, 0x80328F84u, 27u, false, 0x80004004u)', result)
 
     def test_rel_call_through_the_mirror_is_inlined_by_its_canonical_entry(self):
         rel = (CALL.replace('80004000', 'C0DA0254').replace('80004004', 'C0DA0258')
                .replace('0x80328F84', '0xC0328F84'))
         result, count = gpr.transform(rel, set())
         self.assertEqual(count, 1)
-        self.assertIn('bw_direct_call_ready(ctx, 0x80328F84u)', result)
-        self.assertIn('bw_inline_gpr_memory_ready(ctx, 27u)', result)
-        self.assertIn('bw_direct_call_ready(ctx, 0xC0DA0258u)', result)
-        self.assertIn('goto label_C0DA0258;', result)
+        # The REL modules' many, mostly cold sites call the shared helper.
+        self.assertIn('bw_gpr_run(ctx, 0x80328F84u, 27u, false, 0xC0DA0258u)', result)
+        self.assertIn('case 2: goto label_C0DA0258;', result)
+        self.assertIn('case 1: return;', result)
         # Declined, it still goes out through the mirror address it called.
         self.assertIn('ctx->pc = 0xC0328F84u;\n            return;', result)
 
     def test_plain_and_fixed_cpu_rewrites_keep_memory_and_host_guards(self):
-        for source in (CALL, CALL.replace('CPUState* ctx)', 'CPUState* ctx_param)')):
+        # _restgpr_28: an entry no host hook names, so it runs inline.
+        plain = CALL.replace('80328F84', '80328F88')
+        for source in (plain, plain.replace('CPUState* ctx)', 'CPUState* ctx_param)')):
             result, count = gpr.transform(source, set())
             self.assertEqual(count, 1)
             self.assertIn('#include "inline_gpr.h"', result)
-            self.assertIn('bw_inline_gpr_memory_ready(ctx, 27u)', result)
-            self.assertIn('bw_direct_call_ready(ctx, 0x80328F84u)', result)
+            self.assertIn('bw_inline_gpr_memory_ready(ctx, 28u)', result)
+            self.assertIn('bw_direct_call_ready(ctx, 0x80328F88u)', result)
             self.assertIn('bw_direct_call_ready(ctx, 0x80004004u)', result)
-            self.assertLess(result.index('ctx->pc = 0x80328F84u'), result.index('bw_direct_call_ready'))
+            self.assertLess(result.index('ctx->pc = 0x80328F88u'), result.index('bw_direct_call_ready'))
             self.assertEqual(gpr.transform(result, set()), (result, 0))
 
     def test_unaligned_and_missing_continuation_stay_ordinary(self):

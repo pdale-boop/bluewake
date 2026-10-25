@@ -49,4 +49,50 @@ static inline u8* bw_inline_gpr_frame(CPUState* cpu, unsigned first, bool save) 
 #endif
 }
 
+/* The same routine as an out-of-line call, for call sites that are many and
+ * mostly cold (the REL modules' and the return-keyed entries'): one copy per
+ * source file instead of the stores at every site. 0: declined, nothing
+ * changed, the call goes out as before; 1: the routine ran and the turn stops
+ * at its return; 2: the routine ran and the caller continues at its return.
+ * Each step is the inline form's (inline_save_restore_gpr.py's inline_body).
+ * Only a translated chunk has the cycle budget (generated.h); the parameter is
+ * named ctx because DOLRECOMP_C_LOOP_CYCLE_BUDGET reads ctx. */
+#if defined(DOLRECOMP_C_LOOP_CYCLE_BUDGET)
+static __attribute__((noinline, unused)) int bw_gpr_run(CPUState* ctx, u32 target, unsigned first,
+                                               bool save, u32 ret) {
+    if (!bw_direct_call_ready(ctx, target) || !bw_inline_gpr_memory_ready(ctx, first))
+        return 0;
+    const unsigned count = 32u - first + 1u;  /* the stores or loads, and the blr */
+    u32 suffix;
+    if (first == 14u) {
+        /* The routine's first instruction leads a block that prepays it all. */
+        if (!(ctx->downcount > -(s64)DOLRECOMP_C_LOOP_CYCLE_BUDGET &&
+              (ctx->cycle_deadline_budget <= 0 ||
+               (ctx->cycle_deadline_budget >= 18 && dolrecomp_block_can_precharge(ctx, count)))))
+            return 0;
+        suffix = 1u;
+    } else {
+        if (!(ctx->downcount - (s64)(count - 1u) > -(s64)DOLRECOMP_C_LOOP_CYCLE_BUDGET))
+            return 0;
+        suffix = 0u;
+    }
+    ctx->downcount -= count;
+    u8* const slots = bw_inline_gpr_frame(ctx, first, save);
+    for (unsigned reg = first; reg < 32u; ++reg) {
+        if (save)
+            write_be32(slots + 4u * (reg - first), (u32)ctx->gpr[reg]);
+        else
+            ctx->gpr[reg] = read_be32(slots + 4u * (reg - first));
+    }
+    ctx->cycle_observation_suffix = suffix;
+    ctx->pc = ret;
+    /* The routine's return dispatch, then the chassis's checks at the boundary. */
+    if (ctx->downcount <= -(s64)DOLRECOMP_C_LOOP_CYCLE_BUDGET || ctx->exception != 0u ||
+        (ctx->cycle_budget > 0 && ctx->downcount <= -ctx->cycle_budget) ||
+        !bw_direct_call_ready(ctx, ret))
+        return 1;
+    return 2;
+}
+#endif
+
 #endif

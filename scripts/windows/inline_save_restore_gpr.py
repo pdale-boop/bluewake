@@ -130,6 +130,17 @@ def inline_body(target, ret):
     return "\n".join(lines) + "\n"
 
 
+def helper_call(target, ret):
+    """The out-of-line form (inline_gpr.h's bw_gpr_run): one call and a switch."""
+    save = SAVE <= target < SAVE + 18 * 4
+    first = 14 + (target - (SAVE if save else RESTORE)) // 4
+    return (f"            {MARK.strip()}\n"
+            f"            switch (bw_gpr_run(ctx, 0x{target:08X}u, {first}u, {'true' if save else 'false'}, 0x{ret:08X}u)) {{\n"
+            f"            case 2: goto label_{ret:08X};\n"
+            "            case 1: return;\n"
+            "            }\n")
+
+
 def transform(text, watched):
     if MARK in text:
         return text, 0
@@ -156,7 +167,8 @@ def transform(text, watched):
                 "    {\n"
                 f"            ctx->lr = 0x{m.group(3)}u;\n"
                 f"            ctx->pc = 0x{m.group(2)}u;\n"
-                + inline_body(target, ret) +
+                + (helper_call(target, ret) if site >= 0xC0000000 or target in RETURN_KEYED
+                   else inline_body(target, ret)) +
                 f"            ctx->pc = 0x{m.group(2)}u;\n"
                 "            return;\n"
                 "    }\n")
