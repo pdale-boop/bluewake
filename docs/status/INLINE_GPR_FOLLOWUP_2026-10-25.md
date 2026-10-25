@@ -224,6 +224,14 @@ About +1%, and not specific to the rooms added: TA gains as much in rooms only T
 with fewer cores (one playback on four). **Open:** where the sweet spot is. Since the gain looks general rather than per
 room, trials with fewer stops (8 and 12 were suggested, or fewer) would show how much of the +1% a short addition keeps.
 
+## 8. Hand play
+
+About 40 minutes by hand on Arch (i5-12600KF, RTX 5070 Ti, Vulkan) with an Xbox controller, on October 25: the full
+stack in the folder app (21 minutes) and with a menu-fix host on the same module (20 minutes), from a real card. The sea
+around Windfall (sea rooms 0, 3, 4, 10, 11, 12, 19, 26 and 27), Windfall, the Tower of the Gods' first room, and a lot of
+sailing. No crash or hang; the game held 60 frames a second (the rate dipped below 58 twice in 2,025 one-second samples).
+What went wrong was in the menu and is on `main` too, not the inlining; those fixes are chrissotraidis/bluewake#485.
+
 ## Builds and branches
 
 - `pdale-boop/bluewake` `exp/gpr-direct`: #480 at `7d6a30d`, then `043495d` (direct frame writes) and `52583a4` (REL
@@ -238,4 +246,4 @@ room, trials with fewer stops (8 and 12 were suggested, or fewer) would show how
 - A second independent training of the full stack, to put a number on profile luck. It moved results by about ±1% in
   §1, small against +8%.
 - The training-tour sweet spot (§7).
-- Hand play. The checkpoints match, but nobody has played these builds.
+- Hand play on other machines (§8 is one PC, about 40 minutes).
