@@ -227,7 +227,7 @@ room, trials with fewer stops (8 and 12 were suggested, or fewer) would show how
 ## 8. Hand play
 
 About 40 minutes by hand on Arch (i5-12600KF, RTX 5070 Ti, Vulkan) with an Xbox controller, on October 25: the full
-stack in the folder app (21 minutes) and with a menu-fix host on the same module (20 minutes), from a real card. The sea
+stack in #472's AppImage (21 minutes) and in the folder app with a menu-fix host on the same module (20 minutes), from a real card. The sea
 around Windfall (sea rooms 0, 3, 4, 10, 11, 12, 19, 26 and 27), Windfall, the Tower of the Gods' first room, and a lot of
 sailing. No crash or hang; the game held 60 frames a second (the rate dipped below 58 twice in 2,025 one-second samples).
 What went wrong was in the menu and is on `main` too, not the inlining; those fixes are chrissotraidis/bluewake#485.
