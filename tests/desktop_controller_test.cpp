@@ -208,9 +208,9 @@ int main() {
     aurora::input::remove_controller(stick);
     SDL_CloseJoystick(joystick); assert(SDL_DetachVirtualJoystick(stick));
 
-    // A Switch controller's A is its right button: a new settings file's first controller
-    // turns the Nintendo button layout on for it (desktop_menu.cpp, first_controller_layout),
-    // and it still reads as one with the layout on. An Xbox-style pad doesn't, nor does the
+    // A Switch controller's A is its right button: Match the controller puts A, B, X and Y
+    // by their letters for it (desktop_menu.cpp, pad_letters), and it still reads as one with
+    // them swapped. An Xbox-style pad doesn't, nor does the
     // NSO GameCube controller, whose layout already matches.
     assert(!bw_nintendo_face_layout(0));                   // nothing on player 1
     auto nintendo = [&](Uint16 product) {

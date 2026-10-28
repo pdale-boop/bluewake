@@ -72,7 +72,6 @@ int main() {
     launch_option("DOL_AURORA_FPS_POSITION", "bottom-right");
     bw_desktop::load(path);
     assert(!bw_desktop::first_launch());
-    assert(bw_desktop::launched("DOL_AURORA_RENDER_SCALE") && !bw_desktop::launched("DOL_AURORA_SHOW_FPS"));
     assert(bw_desktop::env("DOL_AURORA_RENDER_SCALE") == "4");
     assert(bw_fps_position(bw_desktop::env("DOL_AURORA_FPS_POSITION").c_str()) == FPS_OVERLAY_BOTTOM_RIGHT);
     assert(bw_desktop::env("DOL_AURORA_SHOW_FPS") == "0");

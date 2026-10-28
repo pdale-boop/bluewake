@@ -95,6 +95,8 @@ const char* const kTextSizeShown[] = {"Smaller", "Normal", "Large", "Larger", "L
 const char* const kTextSizeStored[] = {"0.85", "1", "1.15", "1.3", "1.5"};
 const char* const kShadowQualityShown[] = {"Low", "Medium", "High"};
 const char* const kShadowQualityStored[] = {"low", "medium", "high"};
+const char* const kPadLayoutShown[] = {"Match the controller", "By position", "Nintendo letters"};
+const char* const kPadLayoutStored[] = {"controller", "position", "letters"};
 
 // Beside the control when it fits there. A list or a slider fills its line,
 // and after one the note went past the edge and, wrapped to nothing there, was
@@ -151,54 +153,45 @@ void set_fullscreen(bool on) {
 
 // A Nintendo controller's A is where an Xbox pad's B is, and the game takes each
 // button by where it is, so a new player pressing A at the first save prompt
-// backed out of it, with nothing to say why. A new settings file waits for its
-// first controller, at this launch or a later one (a first launch played on the
-// keyboard): a Nintendo controller turns the Nintendo button layout on, so its
-// buttons do what their letters say, and any other leaves it off. The player
-// changing the switch, choosing a custom layout, or a launch that set it ends
-// the wait too. A file from before this has no wait, so a player who already
-// plays with a Nintendo controller keeps what they chose.
-void first_controller_layout() {
-    static bool started = false;
-    static bool layout = false;  // the switch, as the wait last saw it
-    if (!started) {
-        started = true;
-        if (first_launch())
-            set_env("BLUEWAKE_PAD_LAYOUT_PENDING", "1");
-        layout = env_on("BLUEWAKE_PAD_SWAP_AB", false);
-    }
-    if (!env_on("BLUEWAKE_PAD_LAYOUT_PENDING", false))
+// backed out of it, with nothing to say why. Button layout settles once: a new
+// settings file matches the controller, and a file from before the choice keeps
+// what it had (Swap A and B on is Nintendo letters, off is by position), so a
+// player used to either keeps it.
+void settle_pad_layout() {
+    static bool settled = false;
+    if (settled)
         return;
-    if (env_on("BLUEWAKE_PAD_SWAP_AB", false) != layout || !env("BLUEWAKE_BUTTON_MAP").empty() ||
-        launched("BLUEWAKE_PAD_SWAP_AB")) {
-        set_env("BLUEWAKE_PAD_LAYOUT_PENDING", "0");
+    settled = true;
+    if (!env("BLUEWAKE_PAD_LAYOUT").empty())
         return;
-    }
-    const SDL_JoystickID connection = bw_controller_connection(0);
-    if (connection == 0)
-        return;
-    const bool nintendo = bw_nintendo_face_layout(0);
-    set_env("BLUEWAKE_PAD_LAYOUT_PENDING", "0");
-    if (nintendo)
-        set_env("BLUEWAKE_PAD_SWAP_AB", "1");
-    const char* name = SDL_GetGamepadName(SDL_GetGamepadFromID(connection));
-    std::fprintf(stderr, "[pad] first controller: '%s' %s, so the Nintendo button layout is %s\n",
-                 name ? name : "controller", nintendo ? "has Nintendo's layout" : "doesn't have Nintendo's layout",
-                 nintendo ? "on" : "off");
+    set_env("BLUEWAKE_PAD_LAYOUT", first_launch()                          ? "controller"
+                                   : env_on("BLUEWAKE_PAD_SWAP_AB", false) ? "letters"
+                                                                           : "position");
 }
 
-// The controller's buttons as the player set them: the Nintendo layout (A and
-// B, and X and Y, swapped), or a custom layout instead of it, the triggers, and
-// the camera stick inverted. Applied whenever they or the controller on port 0
-// change; a mapping set elsewhere is left alone until the player touches one
-// of these.
+// Whether player 1's A, B, X and Y go by their letters (A and B, and X and Y,
+// swapped from where Aurora puts them): always, never, or when it is a Switch
+// controller or Joy-Cons (Match the controller, and a value none of the choices).
+bool pad_letters() {
+    const std::string layout = env("BLUEWAKE_PAD_LAYOUT");
+    if (layout == "letters")
+        return true;
+    if (layout == "position")
+        return false;
+    return bw_nintendo_face_layout(0);
+}
+
+// The controller's buttons as the player set them: the button layout, or a
+// custom layout instead of it, the triggers, and the camera stick inverted.
+// Applied whenever they or the controller on port 0 change; a mapping set
+// elsewhere is left alone until the player touches one of these.
 void apply_controller() {
     static SDL_JoystickID previous = 0;
     static bool applied = false;
     static std::string last;
     const SDL_JoystickID connection = bw_controller_connection(0);
     const std::string map_text = env("BLUEWAKE_BUTTON_MAP");
-    const bool ab = env_on("BLUEWAKE_PAD_SWAP_AB", false), xy = ab;
+    const bool ab = pad_letters(), xy = ab;
     const bool lr = env_on("BLUEWAKE_PAD_SWAP_LR", false);
     // The camera stick's inverts at the pad, for where the game's own camera
     // has the view. Still as each menu had it on main, until it is decided:
@@ -216,6 +209,11 @@ void apply_controller() {
                               (iy ? "v" : "");
     if (connection == previous && state == last)
         return;
+    if (connection != 0 && connection != previous) {
+        const char* name = SDL_GetGamepadName(SDL_GetGamepadFromID(connection));
+        std::fprintf(stderr, "[pad] '%s': A, B, X and Y by %s (Button layout: %s)\n", name ? name : "controller",
+                     ab ? "their letters" : "where they are", env("BLUEWAKE_PAD_LAYOUT", "controller").c_str());
+    }
     BwButtonMap map;
     const bool remapped = bw_button_map_parse(map_text, &map);
     if (PADGetIndexForPort(0) < 0 || (!ab && !xy && !lr && !ix && !iy && !remapped && !applied)) {
@@ -692,6 +690,12 @@ bool choices(const char* key, const char* const** shown, const char* const** sto
         *count = 5;
         return true;
     }
+    if (std::strcmp(key, "BLUEWAKE_PAD_LAYOUT") == 0) {
+        *shown = bw_desktop::kPadLayoutShown;
+        *stored = bw_desktop::kPadLayoutStored;
+        *count = 3;
+        return true;
+    }
     if (std::strcmp(key, "DOL_AURORA_SUN_SHADOW_QUALITY") == 0) {
         *shown = bw_desktop::kShadowQualityShown;
         *stored = bw_desktop::kShadowQualityStored;
@@ -954,7 +958,7 @@ void draw_menu(const bw_platform::Look& look) {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     // The controller, read here and handed to ImGui as keys (menu_shared.h).
-    const BwMenuPad pad = bw_menu_controller(env("BLUEWAKE_BUTTON_MAP"), env_on("BLUEWAKE_PAD_SWAP_AB", false));
+    const BwMenuPad pad = bw_menu_controller(env("BLUEWAKE_BUTTON_MAP"), pad_letters());
     bluewake_ui::begin_theme(look.scale);
     if (look.font != nullptr)
         ImGui::PushFont(look.font);
@@ -1178,7 +1182,7 @@ void draw(void*) {
         refresh_smooth_rate();  // the display may have changed
         rate_checked = now;
     }
-    first_controller_layout();
+    settle_pad_layout();
     apply_controller();
     apply_key_map();
     test_hook();

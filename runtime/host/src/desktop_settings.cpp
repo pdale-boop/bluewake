@@ -349,7 +349,6 @@ void launch_choice(const char* key, const std::string& value) {
     put_env(key, value);
 }
 
-bool launched(const char* key) { return g_launch.count(key) != 0; }
 bool first_launch() { return g_first_launch; }
 
 void apply_safe_mode() {

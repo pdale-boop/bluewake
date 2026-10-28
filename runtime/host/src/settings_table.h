@@ -162,17 +162,17 @@ inline constexpr Setting kSettings[] = {
     {.key = "BLUEWAKE_SPRINT_CHOICE", .old_windows = "sprint_speed", .kind = Kind::Float, .fallback = "1.5",
      .low = 1.1f, .high = 2.f, .label = "Sprint speed", .tab = Tab::Gameplay, .needs = "BLUEWAKE_JUMP_BUTTON",
      .shown = "%.2fx", .stored = "%.2f"},
-    // A and B, and X and Y, swapped (desktop_menu.cpp, apply_controller); the
-    // key is the one Swap A and B had, so a file that turned it on keeps it.
-    {.key = "BLUEWAKE_PAD_SWAP_AB", .old_windows = "controller_swap_ab", .kind = Kind::Bool,
-     .label = "Nintendo button layout", .tab = Tab::Controls, .control = Control::Switch,
-     .note = "For Switch controllers and Joy-Cons: A, B, X and Y do what their letters say. On by itself the "
-             "first time BlueWake starts with one.",
-     .group = "Controller", .dead_when = "BLUEWAKE_BUTTON_MAP"},
-    // A new settings file waits for its first controller to choose the Nintendo
-    // button layout (desktop_menu.cpp, first_controller_layout); an older file
-    // has no such line, so it never waits.
-    {.key = "BLUEWAKE_PAD_LAYOUT_PENDING", .kind = Kind::Bool, .tab = Tab::Controls},
+    // A, B, X and Y by where they are or by their letters (desktop_menu.cpp,
+    // pad_letters). Not filled: a file from before it has it empty, and the
+    // menu settles it from Swap A and B (settle_pad_layout).
+    {.key = "BLUEWAKE_PAD_LAYOUT", .kind = Kind::Choice, .fallback = "controller", .label = "Button layout",
+     .tab = Tab::Controls, .control = Control::Chooser,
+     .note = "Match the controller: A, B, X and Y do what their letters say on Switch controllers and Joy-Cons, "
+             "and go by where they are on Xbox and PlayStation controllers.",
+     .group = "Controller", .dead_when = "BLUEWAKE_BUTTON_MAP", .fill = Os::None},
+    // Swap A and B (and X and Y), from before Button layout: read once to
+    // settle it, and kept for an older build reading the same file.
+    {.key = "BLUEWAKE_PAD_SWAP_AB", .old_windows = "controller_swap_ab", .kind = Kind::Bool, .tab = Tab::Controls},
     {.key = "BLUEWAKE_PAD_SWAP_LR", .old_windows = "controller_swap_lr", .kind = Kind::Bool,
      .label = "Swap L and R (the triggers)", .tab = Tab::Controls, .control = Control::Switch,
      .dead_when = "BLUEWAKE_BUTTON_MAP"},
