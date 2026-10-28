@@ -133,6 +133,10 @@ refuses to publish when conflicting generated textures cannot be removed. On Lin
 pdale-boop completed a full menu import from his own dump. These results do not
 establish Windows picker or authentic-disc acceptance.
 
+HD's sky clouds (`BLUEWAKE_HD_CLOUDS`, off by default): checked on Linux (Arch, Vulkan) only, from a fresh native
+import. On Windows, import a pack again, then with the HD textures and the HD look on, turn on **HD's clouds in the
+sky**, restart, and check the sky at sea at noon; with either of the other two off the switch should be greyed.
+
 ## 2. Shipped, still to check by hand
 
 | Change | Issue | What to check | Shipped in | Result |
