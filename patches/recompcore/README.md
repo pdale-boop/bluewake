@@ -249,3 +249,8 @@ the shade lit by the sky: HD's on Windfall's dock is about (0.21, 0.39, 0.56) of
 Patch 0191 draws the three vertices left over at the end of a GX_QUADS draw as a triangle, as the hardware does. The
 frontend dropped quads with fewer than four vertices, and the game draws each night star as a three-vertex quad
 (dKyr_drawStar), so no stars showed at night.
+
+Patch 0192 adds aurora_set_exposure: the scene brightened by the game's factor after the HD look's effects and before
+its bloom, where there is depth and above the sea (nothing up to 40 units over its height, fully from 80). BlueWake
+sends Wind Waker HD's own factor for the hour's palettes, its sunlight 3 times at noon on actors and scenery, 1.65
+after gamma. HD brightens the sun's light, not the sea or the sky.
