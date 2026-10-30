@@ -675,14 +675,14 @@
           "evidence": "pdale-boop's: sun shadows on the sea as Wind Waker HD's (HD's sea casts nothing): the sea's surface out of the sun shadow map, no slope or normal bias on it, and the gap fill counting only what the map holds. Arch Linux (i5-12600KF, RTX 5070 Ti, Vulkan), a grid of rendered save states (the boat, three sea platforms, the Outset jetty and sunrise, four under sail, one at dusk): the horizon specks, the trough shading, the hull's gap and the platforms' detached legs gone; nothing else changed. Windows and Mac not yet checked."
         },
         "hd_sun_look": {
-          "runtime": "334af0065d3b65f355b6e8394727d25f2c17ea89",
+          "runtime": "44f83f8676972eda1e11ec90cb29783bb0560690",
           "tracked_patches": [
             "patches/recompcore/0190-Aurora-sun-shadows-shaped-as-in-Wind-Waker-HD-held-at-24-degrees-soft-toward-their-tips-and-tinted-by-the-sky.patch"
           ],
-          "evidence": "pdale-boop's: sun shadows shaped as Wind Waker HD's, measured in Cemu with Link's place and the camera tracked: the sun held at 24 degrees with its shadows thinning to half by -7 and gone by -8 (the Private Oasis, 17:15-17:25); long shadows soft toward their tips; the shadow a colour lit by the sky (0.22, 0.41, 0.60 of what is lit; HD's about 0.21, 0.39, 0.56 on Windfall's dock); two debug views. Arch Linux (i5-12600KF, RTX 5070 Ti, Vulkan), rendered dusk and noon warps and saved states against HD's frames. Windows and Mac not yet checked."
+          "evidence": "pdale-boop's: sun shadows shaped as Wind Waker HD's, measured in Cemu with Link's place and the camera tracked: the sun held at 24 degrees with its shadows thinning to half by -7 and gone by -8 (the Private Oasis, 17:15-17:25); long shadows soft toward their tips; the shadow a colour lit by the sky (0.22, 0.41, 0.60 of what is lit; HD's about 0.21, 0.39, 0.56 on Windfall's dock); two debug views; three cascades (a fourth shaded far islands in light-blue blocks through the haze). Arch Linux (i5-12600KF, RTX 5070 Ti, Vulkan), rendered dusk and noon warps and saved states against HD's frames; Windfall sailed toward from sea room 10 with three cascades and four. Windows and Mac not yet checked."
         },
         "gx_short_quads": {
-          "runtime": "57f45d6ff4a51ea58a450b0c2654d24075825560",
+          "runtime": "b5ed83b7fde13d1daf50aa06fefc327bff3c3382",
           "tracked_patches": [
             "patches/recompcore/0191-GX-three-vertices-left-over-in-a-quad-draw-draw-a-triangle-as-on-the-hardware.patch"
           ],

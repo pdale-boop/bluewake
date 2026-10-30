@@ -41,7 +41,7 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # A texture pack's optional/ folders, loaded over it only when asked (HD's sky clouds): patches/recompcore/0187 (pdale-boop).
 # The sun shadow map's shadows while the game draws its sun disk and the moon's from 25 degrees, and the moon's at dawn down to 8 degrees, as in Wind Waker HD: patches/recompcore/0188 (pdale-boop).
 # The sea takes sun shadows but casts none, with no slope or normal bias, and the gap fill counts only what the sun shadow map holds: patches/recompcore/0189 (pdale-boop).
-# The sun shadow map's sun held at 24 degrees with its shadows thinning out from there, long shadows soft toward their tips, two debug views, and its shadow a colour lit by the sky, as in Wind Waker HD: patches/recompcore/0190 (pdale-boop).
+# The sun shadow map's sun held at 24 degrees with its shadows thinning out from there, long shadows soft toward their tips, two debug views, its shadow a colour lit by the sky, as in Wind Waker HD, and three cascades: patches/recompcore/0190 (pdale-boop).
 # A quad draw's three left-over vertices drawn as a triangle, as on the hardware (the stars): patches/recompcore/0191 (pdale-boop).
 # The scene's brightness from the game, where there is depth and above the sea (Wind Waker HD's sunlight for the hour): patches/recompcore/0192 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
