@@ -253,6 +253,9 @@ frontend dropped quads with fewer than four vertices, and the game draws each ni
 (dKyr_drawStar), so no stars showed at night.
 
 Patch 0192 adds aurora_set_exposure: the scene brightened by the game's factor after the HD look's effects and before
-its bloom, where there is depth and above the sea (nothing up to 40 units over its height, fully from 80). BlueWake
-sends Wind Waker HD's own factor for the hour's palettes, its sunlight 3 times at noon on actors and scenery, 1.65
-after gamma. HD brightens the sun's light, not the sea or the sky.
+its bloom, where there is depth and not the sea. BlueWake sends Wind Waker HD's own factor for the hour's palettes,
+its sunlight 3 times at noon on actors and scenery, 1.65 after gamma. HD brightens the sun's light, not the sea or the
+sky. The sea is a mask, from the scene's draws drawn again: those that sample the sea's textures (d_a_sea's water,
+the island rooms' ring of sea and their beaches' surf, by the texture packs' hash) and the sea rooms' untextured
+square of sea, covered by what writes depth in front of them. A height band above the sea had left beaches below a
+swell's height unlit and lit the swells' crests. `DOL_AURORA_SEA_MASK_DEBUG=1` shows the mask.
