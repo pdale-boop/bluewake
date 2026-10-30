@@ -30,6 +30,16 @@ static bool g_sky_models;  // with them, HD's sky models (BLUEWAKE_HD_SKY_MODELS
 static bool g_sky_linear;  // and HD's blend in linear light (BLUEWAKE_HD_SKY_LINEAR=1; off by default)
 static void sky_load(void);
 
+// A number setting, or `fallback` when it is unset or not a number in [lo, hi].
+static float setting_number(const char* key, float fallback, float lo, float hi) {
+    const char* value = getenv(key);
+    if (value == NULL || value[0] == '\0')
+        return fallback;
+    char* end = NULL;
+    const float number = strtof(value, &end);
+    return end != value && number >= lo && number <= hi ? number : fallback;
+}
+
 static int setting(const char* key) {  // 1, 0, or -1 when unset
     const char* value = getenv(key);
     if (value == NULL || value[0] == '\0')
@@ -121,6 +131,9 @@ void bluewake_hd_look_reload(void) {
             s_quality = quality;
         }
     }
+    // How dark the sun shadows are, as the player chose in the menu (HD's own
+    // by default).
+    aurora_set_sun_shadow_strength(setting_number("BLUEWAKE_HD_SHADOW_STRENGTH", 1.0f, 0.0f, 1.0f));
     fprintf(stderr, "[hd-look] distant islands %s, ambient occlusion %s, sun shadows %s%s, edge light %s, torch light %s, cloud shadows %s, far blur %s, bloom %s\n",
             bluewake_hd_distant_islands ? "on" : "off", ao < 0 ? "unset" : ao ? "on" : "off",
             g_sun == 1 ? "on" : "off", g_sun == 1 && sun_map == 1 ? " (shadow map)" : "", g_edge == 1 ? "on" : "off", g_torch == 1 ? "on" : "off",
