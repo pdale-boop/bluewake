@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "57f45d6ff4a51ea58a450b0c2654d24075825560",
+      "sha": "b5ed83b7fde13d1daf50aa06fefc327bff3c3382",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -682,7 +682,7 @@
           "evidence": "pdale-boop's: sun shadows shaped as Wind Waker HD's, measured in Cemu with Link's place and the camera tracked: the sun held at 24 degrees with its shadows thinning to half by -7 and gone by -8 (the Private Oasis, 17:15-17:25); long shadows soft toward their tips; the shadow a colour lit by the sky (0.22, 0.41, 0.60 of what is lit; HD's about 0.21, 0.39, 0.56 on Windfall's dock); two debug views; three cascades (a fourth shaded far islands in light-blue blocks through the haze). Arch Linux (i5-12600KF, RTX 5070 Ti, Vulkan), rendered dusk and noon warps and saved states against HD's frames; Windfall sailed toward from sea room 10 with three cascades and four. Windows and Mac not yet checked."
         },
         "gx_short_quads": {
-          "runtime": "57f45d6ff4a51ea58a450b0c2654d24075825560",
+          "runtime": "b5ed83b7fde13d1daf50aa06fefc327bff3c3382",
           "tracked_patches": [
             "patches/recompcore/0191-GX-three-vertices-left-over-in-a-quad-draw-draw-a-triangle-as-on-the-hardware.patch"
           ],

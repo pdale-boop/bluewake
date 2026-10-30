@@ -44,7 +44,7 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # The sun shadow map's sun held at 24 degrees with its shadows thinning out from there, long shadows soft toward their tips, two debug views, its shadow a colour lit by the sky, as in Wind Waker HD, and three cascades: patches/recompcore/0190 (pdale-boop).
 # A quad draw's three left-over vertices drawn as a triangle, as on the hardware (the stars): patches/recompcore/0191 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=57f45d6ff4a51ea58a450b0c2654d24075825560
+RECOMPCORE_SHA=b5ed83b7fde13d1daf50aa06fefc327bff3c3382
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2
