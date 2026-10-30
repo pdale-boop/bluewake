@@ -261,4 +261,6 @@ its sunlight 3 times at noon on actors and scenery, 1.65 after gamma. HD brighte
 sky. The sea is a mask, from the scene's draws drawn again: those that sample the sea's textures (d_a_sea's water,
 the island rooms' ring of sea and their beaches' surf, by the texture packs' hash) and the sea rooms' untextured
 square of sea, covered by what writes depth in front of them. A height band above the sea had left beaches below a
-swell's height unlit and lit the swells' crests. `DOL_AURORA_SEA_MASK_DEBUG=1` shows the mask.
+swell's height unlit and lit the swells' crests. Pools, rivers and falls count as the sea, and the brightness fades out
+from 10,000 to 25,000 units away (`DOL_AURORA_EXPOSURE_FAR`), where islands are the haze's colour. `DOL_AURORA_SEA_MASK_DEBUG=1`
+shows the mask.

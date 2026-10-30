@@ -45,7 +45,7 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # A quad draw's three left-over vertices drawn as a triangle, as on the hardware (the stars), and the stars steady in Smooth Motion: patches/recompcore/0191 (pdale-boop).
 # The scene's brightness from the game, where there is depth and not the sea (Wind Waker HD's sunlight for the hour; the sea found by a mask from its textures): patches/recompcore/0192 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=56150073b9d64c8b0daed7b5096c7cd403910593
+RECOMPCORE_SHA=e7eee179b3b95f6099685d0b7733b56ffa158fb3
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2
