@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "e3753ce8d768711144543d8c7e4402e3cff13e75",
+      "sha": "d189bbd000bd8a3a141d3f06a9af2d21a8adc75b",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -689,11 +689,11 @@
           "evidence": "pdale-boop's: GX_QUADS draws whose vertex count leaves three over draw them as a triangle, as the hardware does; the frontend had dropped them, and the game's night stars are three-vertex quads (dKyr_drawStar), so none showed. Arch Linux (i5-12600KF, RTX 5070 Ti, Vulkan), rendered warps to Windfall's dock at 4:00 and 21:00: the stars show. Windows and Mac not yet checked."
         },
         "hd_brightness": {
-          "runtime": "e3753ce8d768711144543d8c7e4402e3cff13e75",
+          "runtime": "d189bbd000bd8a3a141d3f06a9af2d21a8adc75b",
           "tracked_patches": [
-            "patches/recompcore/0192-Aurora-the-scene-s-brightness-from-the-game-where-there-is-depth-and-above-the-sea.patch"
+            "patches/recompcore/0192-Aurora-the-scene-s-brightness-from-the-game-where-there-is-depth-and-not-the-sea.patch"
           ],
-          "evidence": "pdale-boop's: aurora_set_exposure brightens the scene by the game's factor where there is depth and above the sea, for Wind Waker HD's sunlight for the hour (BLUEWAKE_HD_SKY). Arch Linux (i5-12600KF, RTX 5070 Ti, Vulkan), Windfall's dock from the stage select against HD in Cemu at 23 times from 4:00 to midnight: the deck, cliffs and sea within about 10% of HD's at most hours. Windows and Mac not yet checked."
+          "evidence": "pdale-boop's: aurora_set_exposure brightens the scene by the game's factor where there is depth and not the sea, for Wind Waker HD's sunlight for the hour (BLUEWAKE_HD_SKY); the sea is a mask of the draws that sample its textures (d_a_sea's, the island rooms' ring of sea and surf) and the sea rooms' untextured square of sea. Arch Linux (i5-12600KF, RTX 5070 Ti, Vulkan), Windfall's dock from the stage select against HD in Cemu at 23 times from 4:00 to midnight: the deck, cliffs and sea within about 10% of HD's at most hours; the mask in its debug view at sea room 10's beach and swells, Dragon Roost's shore, the open sea from above at the Forsaken Fortress, and Hyrule Castle (nothing marked). Windows and Mac not yet checked."
         }
       }
     },
