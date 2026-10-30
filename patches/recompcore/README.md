@@ -250,4 +250,7 @@ from across the sea.
 
 Patch 0191 draws the three vertices left over at the end of a GX_QUADS draw as a triangle, as the hardware does. The
 frontend dropped quads with fewer than four vertices, and the game draws each night star as a three-vertex quad
-(dKyr_drawStar), so no stars showed at night.
+(dKyr_drawStar), so no stars showed at night. It also keeps them steady in Smooth Motion: each star stands at the
+camera's eye plus its place on a small dome, and the in-between frames paired stars by their places in the world, so
+they jumped with the camera or half way to a neighbour; a three-vertex quad is now paired from the camera's eye and
+moved with each in-between camera's eye.
