@@ -1,8 +1,8 @@
-From 334af0065d3b65f355b6e8394727d25f2c17ea89 Mon Sep 17 00:00:00 2001
+From 44f83f8676972eda1e11ec90cb29783bb0560690 Mon Sep 17 00:00:00 2001
 From: pdale-boop <237306950+pdale-boop@users.noreply.github.com>
 Date: Thu, 29 Oct 2026 02:03:06 -0500
-Subject: [PATCH] Aurora: sun shadows shaped as in Wind Waker HD, held at 24
- degrees, soft toward their tips, and tinted by the sky
+Subject: [PATCH 190/192] Aurora: sun shadows shaped as in Wind Waker HD, held
+ at 24 degrees, soft toward their tips, and tinted by the sky
 
 The sun shadow map holds the sun at 24 degrees, its direction too, and thins its shadows out from there, as Wind Waker HD does.
 
@@ -40,15 +40,24 @@ red, green and blue in HD, and 0.65 of each here. The full shadow now
 multiplies the scene by a colour, 0.22, 0.41, 0.60, blended in by how shaded a
 place is: the same spot measures 0.22, 0.41, 0.61. DOL_AURORA_SUN_SHADOWS_COLOUR
 sets it (0.65,0.65,0.65 is the old grey).
+
+The sun shadow map has three cascades, out to 20,000 units.
+
+The fourth, out to 80,000, held only islands deep in the haze, and its coarse
+texels shaded them in blocks the haze turned light blue: Windfall, sailed
+toward from sea room 10, from when its model loaded until it came into the
+third cascade. With three it is lit until then, and its shadows fade in at the
+third's detail. It also saves drawing the casters a fourth time each frame.
+DOL_AURORA_SUN_SHADOW_MAP_CASCADES=4 puts it back.
 ---
- GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp | 136 +++++++++++++++---
- 1 file changed, 118 insertions(+), 18 deletions(-)
+ GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp | 145 +++++++++++++++---
+ 1 file changed, 124 insertions(+), 21 deletions(-)
 
 diff --git a/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp b/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
-index 5d00c6e695..e1bfd183da 100644
+index 5d00c6e695..6e985fc19b 100644
 --- a/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
 +++ b/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
-@@ -32,6 +32,12 @@ std::array<float, kMaxLights * 8> g_lights{};
+@@ -32,12 +32,18 @@ std::array<float, kMaxLights * 8> g_lights{};
  uint32_t g_lightCount = 0;
  float g_edgeStrength = 0.4f;  // how bright a sunlit edge gets
  float g_sunStrength = 0.35f;  // how dark a sun shadow is
@@ -61,6 +70,13 @@ index 5d00c6e695..e1bfd183da 100644
  float g_sunReach = 1500.f;    // how far toward the sun a shadow is looked for, in world units
  std::atomic_bool g_sunMapOn{false};
  uint32_t g_sunMapSize = 4096;    // the shadow map's texels a side (4096 high, 2048 medium, 1024 low)
+ float g_sunMapRange = 1250.f;    // world units from the first cascade's centre to its edge (a texel about Link's leg)
+ float g_sunMapSpread = 4.f;      // each next cascade this many times wider
+-uint32_t g_sunMapCascades = 4;   // DOL_AURORA_SUN_SHADOW_MAP_CASCADES, 1 to kSunMapCascades
++uint32_t g_sunMapCascades = 3;   // DOL_AURORA_SUN_SHADOW_MAP_CASCADES, 1 to kSunMapCascades
+ float g_sunMapDepth = 20000.f;   // world units toward and away from the sun it holds, from its centre (at least twice a cascade's range)
+ float g_sunMapBias = 12.f;       // world units a surface is moved toward the sun before the lookup (first cascade; scaled with the texels)
+ float g_sunMapContact = 300.f;   // the screen's steps' reach, for what the map leaves out
 @@ -45,6 +51,8 @@ int g_sunMapDebug = 0;           // DOL_AURORA_SUN_SHADOW_MAP_DEBUG=1: the map's
  bool g_sunMapSteps = false;
  float g_sunMapSeaLow = 40.f;      // DOL_AURORA_SUN_SHADOW_MAP_SEA_LOW: below the sea's height plus this, a surface counts as sea
@@ -232,7 +248,23 @@ index 5d00c6e695..e1bfd183da 100644
    };
    const wgpu::BlendState multiply{
        .color = {.operation = wgpu::BlendOperation::Add,
-@@ -1908,6 +1983,12 @@ void initialize() {
+@@ -1597,10 +1672,13 @@ wgpu::RenderPipeline make_far_pipeline(wgpu::TextureFormat format, uint32_t samp
+ // A shadow quality's map size, cascades, filter lookups and gap fill (0 low,
+ // 1 medium, 2 high), then each of their own variables on top. Low keeps
+ // medium's sharpness (at 1024 every texel term grew and small shapes became
+-// blobs) and saves a cascade, half the lookups and the gap fill's steps.
++// blobs) and saves half the lookups and the gap fill's steps. Every quality
++// has three cascades (out to 20,000 units): the fourth reached only islands
++// deep in the haze, and its coarse texels shaded Windfall in light-blue
++// blocks from across the sea, which went as it sailed into the third.
+ void apply_sun_quality(int level) {
+   g_sunMapSize = level >= 2 ? 4096 : 2048;
+-  g_sunMapCascades = level <= 0 ? 3 : kSunMapCascades;
++  g_sunMapCascades = 3;
+   g_sunMapTaps = level <= 0 ? 6 : 12;
+   g_sunMapGapFill = level > 0;
+   g_sunMapTaps = static_cast<uint32_t>(env_float("DOL_AURORA_SUN_SHADOW_MAP_TAPS", static_cast<float>(g_sunMapTaps), 6.f, 12.f));
+@@ -1908,6 +1986,12 @@ void initialize() {
    g_cloudStrength = env_float("DOL_AURORA_CLOUD_SHADOWS_STRENGTH", g_cloudStrength, 0.f, 1.f);
    g_cloudScale = env_float("DOL_AURORA_CLOUD_SHADOWS_SCALE", g_cloudScale, 1.f, 1e7f);
    g_sunStrength = env_float("DOL_AURORA_SUN_SHADOWS_STRENGTH", g_sunStrength, 0.f, 1.f);
@@ -245,7 +277,7 @@ index 5d00c6e695..e1bfd183da 100644
    g_sunReach = env_float("DOL_AURORA_SUN_SHADOWS_REACH", g_sunReach, 1.f, 1e6f);
    // The host decides through set_sun_shadow_map(); the variable overrides it only when it is set.
    if (const char* sunMap = std::getenv("DOL_AURORA_SUN_SHADOW_MAP"); sunMap != nullptr) {
-@@ -1929,6 +2010,7 @@ void initialize() {
+@@ -1929,6 +2013,7 @@ void initialize() {
    g_sunMapFadeLow = env_float("DOL_AURORA_SUN_SHADOW_MAP_FADE_LOW", g_sunMapFadeLow, -0.5f, 0.9f);
    g_sunMapFadeHigh = env_float("DOL_AURORA_SUN_SHADOW_MAP_FADE_HIGH", g_sunMapFadeHigh, g_sunMapFadeLow + 0.001f, 1.f);
    g_sunMapHold = env_float("DOL_AURORA_SUN_SHADOW_MAP_HOLD", g_sunMapHold, 0.f, 0.5f);
@@ -253,7 +285,7 @@ index 5d00c6e695..e1bfd183da 100644
    g_moonStrength = env_float("DOL_AURORA_MOON_SHADOWS_STRENGTH", g_moonStrength, 0.f, 1.f);
    g_moonFadeLow = env_float("DOL_AURORA_MOON_SHADOWS_FADE_LOW", g_moonFadeLow, 0.f, 0.9f);
    g_moonFadeHigh = env_float("DOL_AURORA_MOON_SHADOWS_FADE_HIGH", g_moonFadeHigh, g_moonFadeLow + 0.001f, 1.f);
-@@ -1947,6 +2029,8 @@ void initialize() {
+@@ -1947,6 +2032,8 @@ void initialize() {
    g_sunMapSeaLow = env_float("DOL_AURORA_SUN_SHADOW_MAP_SEA_LOW", g_sunMapSeaLow, 0.f, 1000.f);
    g_sunMapSeaRise = env_float("DOL_AURORA_SUN_SHADOW_MAP_SEA_RISE", g_sunMapSeaRise, 0.f, 1000.f);
    g_sunMapSeaBias = env_float("DOL_AURORA_SUN_SHADOW_MAP_SEA_BIAS", g_sunMapSeaBias, 0.f, 1.f);
@@ -262,7 +294,7 @@ index 5d00c6e695..e1bfd183da 100644
    if (const char* sunMapSmooth = std::getenv("DOL_AURORA_SUN_SHADOW_MAP_SMOOTH"); sunMapSmooth != nullptr)
      g_sunMapSmooth = sunMapSmooth[0] != '0';
    g_edgeStrength = env_float("DOL_AURORA_EDGE_LIGHT_STRENGTH", g_edgeStrength, 0.f, 4.f);
-@@ -2191,22 +2275,38 @@ SunMap sun_map(const Camera& camera) noexcept {
+@@ -2191,22 +2278,38 @@ SunMap sun_map(const Camera& camera) noexcept {
    const float* v = camera.view.data();
    // The sun, or once it has gone the moon: the game puts it opposite the sun
    // (dScnKy_env_light_c's mMoonPos is the eye minus the sun's offset). As in

@@ -244,4 +244,6 @@ Patch 0190 shapes sun shadows as Wind Waker HD's. It holds the sun at 24 degrees
 shadows stop growing, and thins them out from there to half by -7 degrees and none by -8 (measured in Cemu at the
 Private Oasis). It softens long shadows toward their tips by the caster's distance, adds two debug views
 (DOL_AURORA_SUN_SHADOW_MAP_DEBUG=7, how surfaces face the sun; 8, the shadow in pink), and makes the shadow a colour,
-the shade lit by the sky: HD's on Windfall's dock is about (0.21, 0.39, 0.56) of what is lit.
+the shade lit by the sky: HD's on Windfall's dock is about (0.21, 0.39, 0.56) of what is lit. The map has three
+cascades, out to 20,000 units: a fourth held only islands deep in the haze, and shaded Windfall in light-blue blocks
+from across the sea.
