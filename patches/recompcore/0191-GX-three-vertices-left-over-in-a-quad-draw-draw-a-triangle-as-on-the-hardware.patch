@@ -1,8 +1,8 @@
-From 57f45d6ff4a51ea58a450b0c2654d24075825560 Mon Sep 17 00:00:00 2001
+From b5ed83b7fde13d1daf50aa06fefc327bff3c3382 Mon Sep 17 00:00:00 2001
 From: pdale-boop <237306950+pdale-boop@users.noreply.github.com>
 Date: Thu, 29 Oct 2026 02:30:18 -0500
-Subject: [PATCH] GX: three vertices left over in a quad draw draw a triangle,
- as on the hardware
+Subject: [PATCH 191/192] GX: three vertices left over in a quad draw draw a
+ triangle, as on the hardware
 
 Wind Waker draws each of its night stars (dKyr_drawStar) as GX_QUADS with
 three vertices. The quads were taken four vertices at a time and the rest
