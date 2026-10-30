@@ -42,6 +42,7 @@ void aurora_set_ambient_occlusion(bool on) { ao = on; }
 int map_on = -1;
 void aurora_set_sun_shadow_map(bool on) { map_on = on; }
 void aurora_set_sun_shadow_quality(int) {}
+void aurora_set_sun_shadow_strength(float) {}
 std::string read_file(const std::string& path) {
     std::ifstream file(path);
     return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
@@ -84,6 +85,9 @@ LAUNCH = {
 }
 
 CHECK_HD = r'''
+// HD's sky palettes load from the pack (hd_look.c's sky part, left out here).
+static void sky_load(void) {}
+static void sky_sunlight_changed(void) {}
 void check_hd(int on, int bloom_on, int sun_on) {
     assert(bluewake_hd_distant_islands == bool(on));
     assert(bloom == bloom_on && far_blur == on && ao == on);

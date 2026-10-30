@@ -129,9 +129,19 @@ inline constexpr Setting kSettings[] = {
      .control = Control::Switch, .needs = "BLUEWAKE_HD_SKY", .pane = "Wind Waker HD look settings"},
     {.key = "BLUEWAKE_HD_SKY_LINEAR", .kind = Kind::Bool, .label = "HD's dawn and dusk colours (blended in linear light)",
      .control = Control::Switch, .needs = "BLUEWAKE_HD_SKY", .pane = "Wind Waker HD look settings"},
+    // How strong HD's brighter sunlight is (hd_look.c sky_brightness()): the
+    // power its factor for the hour is taken to, as HD's (0.37, 1.5 times at
+    // noon) or softer, for players who find it too bright.
+    {.key = "BLUEWAKE_HD_SUNLIGHT", .kind = Kind::Choice, .fallback = "0.37", .label = "HD sunlight",
+     .control = Control::Chooser, .note = "How much brighter HD's sun makes the scenery and Link.",
+     .needs = "BLUEWAKE_HD_SKY", .pane = "Wind Waker HD look settings"},
     {.key = "BLUEWAKE_HD_SUN_SHADOWS", .kind = Kind::Bool, .label = "Sun shadows outdoors (from the HD look)",
      .control = Control::Switch, .needs = "BLUEWAKE_HD_LOOK", .pane = "Wind Waker HD look settings",
      .experimental = "From a shadow map, so what is off screen still casts. Played on Linux (Vulkan) and Windows (Direct3D 12); not yet on a Mac."},
+    // How dark the sun shadows are (aurora_set_sun_shadow_strength): HD's, or
+    // lighter, for players who find them too dark.
+    {.key = "BLUEWAKE_HD_SHADOW_STRENGTH", .kind = Kind::Choice, .fallback = "1", .label = "Sun shadow darkness",
+     .control = Control::Chooser, .needs = "BLUEWAKE_HD_SUN_SHADOWS", .pane = "Wind Waker HD look settings"},
     {.key = "DOL_AURORA_SHOW_FPS", .old_windows = "show_fps", .kind = Kind::Bool,
      .label = "Show the frame rate   (F9)", .control = Control::Switch},
     {.key = "DOL_AURORA_ASPECT_FIT", .old_windows = "keep_aspect", .kind = Kind::Bool, .on = Os::Windows,

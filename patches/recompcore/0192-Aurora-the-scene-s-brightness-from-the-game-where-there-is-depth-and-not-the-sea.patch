@@ -1,8 +1,8 @@
-From c6065856aa99d5f5926f4684ef2d4dbe39f3dcee Mon Sep 17 00:00:00 2001
+From 259627f2d7f6fe34c9f22a74da4a92b35c55b890 Mon Sep 17 00:00:00 2001
 From: pdale-boop <237306950+pdale-boop@users.noreply.github.com>
 Date: Thu, 29 Oct 2026 16:12:10 -0500
-Subject: [PATCH] Aurora: the scene's brightness from the game, where there is
- depth and not the sea
+Subject: [PATCH 192/192] Aurora: the scene's brightness from the game, where
+ there is depth and not the sea
 
 aurora_set_exposure(gain) brightens the scene after the HD look's effects and
 before its bloom: kBoost, scene * (1 + gain - 1), where there is depth and not
@@ -65,7 +65,7 @@ shading, almost none of it clipped (2.5% of the screen before).
  6 files changed, 625 insertions(+), 37 deletions(-)
 
 diff --git a/GXRuntime/graphics/aurora/include/aurora/aurora.h b/GXRuntime/graphics/aurora/include/aurora/aurora.h
-index b0ea0c7866..21fa92e1e5 100644
+index ccf0a5fa03..97508851b8 100644
 --- a/GXRuntime/graphics/aurora/include/aurora/aurora.h
 +++ b/GXRuntime/graphics/aurora/include/aurora/aurora.h
 @@ -179,6 +179,10 @@ void aurora_set_ambient_occlusion(bool enabled);
@@ -589,7 +589,7 @@ index 65f6542827..4675b4a88c 100644
  // Perform one EFB copy-to-texture (63/S16): resolve the current EFB region into
  // a texture keyed by the copy destination address, so a later draw binding that
 diff --git a/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp b/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
-index 6e985fc19b..a2d40d30a5 100644
+index 434e2c3df6..19e0156159 100644
 --- a/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
 +++ b/GXRuntime/graphics/aurora/lib/gfx/post_fx.cpp
 @@ -32,6 +32,21 @@ std::array<float, kMaxLights * 8> g_lights{};
@@ -614,7 +614,7 @@ index 6e985fc19b..a2d40d30a5 100644
  // The sun shadow map's full shadow as a colour the scene is multiplied by, the
  // shade lit by the sky as in Wind Waker HD: Link's shadow on Windfall's dock at
  // noon kept 0.21, 0.39 and 0.56 of the sunlit planks' red, green and blue (0.65
-@@ -125,6 +140,7 @@ wgpu::Sampler g_sampler;
+@@ -130,6 +145,7 @@ wgpu::Sampler g_sampler;
  wgpu::TextureFormat g_format = wgpu::TextureFormat::Undefined;
  wgpu::RenderPipeline g_bright, g_blurH, g_blurV;
  wgpu::RenderPipeline g_composite;
@@ -622,7 +622,7 @@ index 6e985fc19b..a2d40d30a5 100644
  wgpu::RenderPipeline g_down;           // the scene at a quarter of the size, unfiltered
  wgpu::RenderPipeline g_farComposite;   // blended into the EFB by distance
  wgpu::RenderPipeline g_aoPass;         // occlusion at a quarter of the size
-@@ -301,6 +317,7 @@ fn fs_far(in: VertexOutput) -> @location(0) vec4<f32> {
+@@ -306,6 +322,7 @@ fn fs_far(in: VertexOutput) -> @location(0) vec4<f32> {
      }
      return vec4(textureSampleLevel(blurred, samp, in.uv, 0.0).rgb, f);
  }
@@ -630,7 +630,7 @@ index 6e985fc19b..a2d40d30a5 100644
  )""";
  wgpu::ShaderModule g_farModule;
  
-@@ -546,7 +563,8 @@ struct View {
+@@ -551,7 +568,8 @@ struct View {
  };
  
  @group(0) @binding(0) var samp: sampler;
@@ -640,7 +640,7 @@ index 6e985fc19b..a2d40d30a5 100644
  @group(0) @binding(2) var depth: texture_depth_2d;
  @group(0) @binding(3) var<uniform> view: View;
  
-@@ -650,6 +668,45 @@ fn fs_clouds(in: VertexOutput) -> @location(0) vec4<f32> {
+@@ -655,6 +673,45 @@ fn fs_clouds(in: VertexOutput) -> @location(0) vec4<f32> {
      let shade = smoothstep(0.42, 0.6, n) * strength * (1.0 - smoothstep(60000.0, 160000.0, distance));
      return vec4(vec3(1.0 - shade + select(0.0, dither(in.pos.xy), shade > 0.0)), 1.0);
  }
@@ -686,7 +686,7 @@ index 6e985fc19b..a2d40d30a5 100644
  )""";
  wgpu::ShaderModule g_cloudModule;
  
-@@ -1455,12 +1512,20 @@ wgpu::RenderPipeline make_ao_pipeline(const char* label, const char* entry, wgpu
+@@ -1460,12 +1517,20 @@ wgpu::RenderPipeline make_ao_pipeline(const char* label, const char* entry, wgpu
    return g_device.CreateRenderPipeline(&descriptor);
  }
  
@@ -708,7 +708,7 @@ index 6e985fc19b..a2d40d30a5 100644
    const wgpu::BlendState multiply{
        .color = {.operation = wgpu::BlendOperation::Add,
                  .srcFactor = wgpu::BlendFactor::Zero,
-@@ -1469,17 +1534,38 @@ wgpu::RenderPipeline make_cloud_pipeline(wgpu::TextureFormat format, uint32_t sa
+@@ -1474,17 +1539,38 @@ wgpu::RenderPipeline make_cloud_pipeline(wgpu::TextureFormat format, uint32_t sa
                  .srcFactor = wgpu::BlendFactor::Zero,
                  .dstFactor = wgpu::BlendFactor::One},
    };
@@ -752,7 +752,7 @@ index 6e985fc19b..a2d40d30a5 100644
        .layout = g_cloudPipelineLayout,
        .vertex = {.module = g_cloudModule, .entryPoint = "vs_main"},
        .primitive = {.topology = wgpu::PrimitiveTopology::TriangleList},
-@@ -1716,6 +1802,7 @@ void ensure_targets(const wgpu::Extent3D& sceneSize, wgpu::TextureFormat format,
+@@ -1721,6 +1807,7 @@ void ensure_targets(const wgpu::Extent3D& sceneSize, wgpu::TextureFormat format,
      g_torchPass = {};
      g_composite = {};
      g_farComposite = {};
@@ -760,7 +760,7 @@ index 6e985fc19b..a2d40d30a5 100644
      g_aoApply = {};
      g_size = {};
    }
-@@ -1752,6 +1839,7 @@ void ensure_targets(const wgpu::Extent3D& sceneSize, wgpu::TextureFormat format,
+@@ -1757,6 +1844,7 @@ void ensure_targets(const wgpu::Extent3D& sceneSize, wgpu::TextureFormat format,
    }
    if (!g_farComposite || samples != g_farSamples) {
      g_farComposite = make_far_pipeline(format, samples);
@@ -768,7 +768,7 @@ index 6e985fc19b..a2d40d30a5 100644
      g_farSamples = samples;
    }
    const wgpu::Extent3D size{std::max(1u, sceneSize.width / 4), std::max(1u, sceneSize.height / 4), 1};
-@@ -1846,18 +1934,22 @@ void draw_depth(const wgpu::CommandEncoder& cmd, const char* label, const wgpu::
+@@ -1851,18 +1939,22 @@ void draw_depth(const wgpu::CommandEncoder& cmd, const char* label, const wgpu::
  void draw_with_uniform(const wgpu::CommandEncoder& cmd, const char* label, const wgpu::RenderPipeline& pipeline,
                         const wgpu::BindGroupLayout& layout, const void* uniform, size_t uniformSize,
                         const wgpu::TextureView& depthView, const wgpu::TextureView& target,
@@ -795,7 +795,7 @@ index 6e985fc19b..a2d40d30a5 100644
    // A small buffer for each frame, so a frame still in flight keeps its camera.
    const wgpu::BufferDescriptor bufferDescriptor{
        .label = "Post effects view",
-@@ -1870,9 +1962,10 @@ void draw_with_uniform(const wgpu::CommandEncoder& cmd, const char* label, const
+@@ -1875,9 +1967,10 @@ void draw_with_uniform(const wgpu::CommandEncoder& cmd, const char* label, const
    buffer.Unmap();
    const std::array entries{
        wgpu::BindGroupEntry{.binding = 0, .sampler = g_sampler},
@@ -807,7 +807,7 @@ index 6e985fc19b..a2d40d30a5 100644
    };
    const wgpu::BindGroupDescriptor bindGroupDescriptor{
        .layout = layout,
-@@ -2121,15 +2214,29 @@ void initialize() {
+@@ -2126,15 +2219,29 @@ void initialize() {
    const wgpu::PipelineLayoutDescriptor depthPipelineLayoutDescriptor{.bindGroupLayoutCount = 1,
                                                                       .bindGroupLayouts = &g_depthLayout};
    g_depthPipelineLayout = g_device.CreatePipelineLayout(&depthPipelineLayoutDescriptor);
@@ -838,7 +838,7 @@ index 6e985fc19b..a2d40d30a5 100644
    };
    const wgpu::BindGroupLayoutDescriptor cloudLayoutDescriptor{
        .label = "Cloud shadows",
-@@ -2196,7 +2303,7 @@ void initialize() {
+@@ -2201,7 +2308,7 @@ void initialize() {
  }
  
  void shutdown() {
@@ -847,7 +847,7 @@ index 6e985fc19b..a2d40d30a5 100644
    g_aoBlurH = g_aoBlurV = g_aoUpscale = {};
    g_aoTex = {};
    g_aoView = {};
-@@ -2227,6 +2334,13 @@ void shutdown() {
+@@ -2232,6 +2339,13 @@ void shutdown() {
    g_cloudPipelineLayout = {};
    g_cloudLayout = {};
    g_cloudModule = {};
@@ -861,7 +861,7 @@ index 6e985fc19b..a2d40d30a5 100644
    g_tex = {};
    g_view = {};
    g_farTex = {};
-@@ -2410,6 +2524,44 @@ bool edge_light_enabled() noexcept { return g_edge.load(std::memory_order_relaxe
+@@ -2420,6 +2534,44 @@ bool edge_light_enabled() noexcept { return g_edge.load(std::memory_order_relaxe
  
  void set_edge_light(bool enabled) noexcept { g_edge.store(enabled, std::memory_order_relaxed); }
  
@@ -906,7 +906,7 @@ index 6e985fc19b..a2d40d30a5 100644
  void set_sun_direction(float x, float y, float z) noexcept {
    const float length = std::sqrt(x * x + y * y + z * z);
    std::lock_guard lock{g_cameraMutex};
-@@ -2444,6 +2596,7 @@ Camera current_camera() noexcept {
+@@ -2454,6 +2606,7 @@ Camera current_camera() noexcept {
    std::lock_guard lock{g_cameraMutex};
    camera.view = g_camera;
    camera.farPlane = g_cameraFar;
@@ -914,7 +914,7 @@ index 6e985fc19b..a2d40d30a5 100644
    camera.valid = g_cameraValid;
    camera.lights = g_lights;
    camera.lightCount = g_lightCount;
-@@ -2467,9 +2620,38 @@ bool any_enabled() noexcept {
+@@ -2477,9 +2630,38 @@ bool any_enabled() noexcept {
           sun_shadows_enabled() || edge_light_enabled() || torch_light_enabled();
  }
  
@@ -953,7 +953,7 @@ index 6e985fc19b..a2d40d30a5 100644
    // Ambient occlusion and the far blur need single-sample depth (the depth
    // buffer is multisampled with MSAA).
    if (ambient_occlusion_enabled() && g_module && depthView && msaaSamples == 1 && size.width >= 4 && size.height >= 4) {
-@@ -2541,6 +2723,18 @@ void encode(const wgpu::CommandEncoder& cmd, const wgpu::TextureView& scene, con
+@@ -2551,6 +2733,18 @@ void encode(const wgpu::CommandEncoder& cmd, const wgpu::TextureView& scene, con
      }
      draw_depth(cmd, "Far blur composite", g_farComposite, g_farView[0], depthView, dst, resolve, true);
    }
@@ -972,7 +972,7 @@ index 6e985fc19b..a2d40d30a5 100644
    if (bloom_enabled())
      encode_bloom(cmd, scene, size, format, dst, resolve, msaaSamples);
  }
-@@ -2581,6 +2775,8 @@ void aurora_set_sun_shadows(bool enabled) { aurora::gfx::post_fx::set_sun_shadow
+@@ -2591,6 +2785,8 @@ void aurora_set_sun_shadows(bool enabled) { aurora::gfx::post_fx::set_sun_shadow
  
  void aurora_set_sun_direction(float x, float y, float z) { aurora::gfx::post_fx::set_sun_direction(x, y, z); }
  
@@ -982,12 +982,12 @@ index 6e985fc19b..a2d40d30a5 100644
  
  void aurora_set_sun_shadow_quality(int quality) { aurora::gfx::post_fx::set_sun_shadow_quality(quality); }
 diff --git a/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp b/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp
-index b97f5d7da5..08f937474a 100644
+index 3619523b43..252c01f6b9 100644
 --- a/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp
 +++ b/GXRuntime/graphics/aurora/lib/gfx/post_fx.hpp
-@@ -68,6 +68,19 @@ void set_sun_shadow_map(bool enabled) noexcept;
- // levels); applied by the render thread before its next frame.
+@@ -69,6 +69,19 @@ void set_sun_shadow_map(bool enabled) noexcept;
  void set_sun_shadow_quality(int level) noexcept;
+ void set_sun_shadow_strength(float strength) noexcept;
  void set_sun_direction(float x, float y, float z) noexcept;
 +void set_exposure(float gain) noexcept;
 +// The scene is brightened this frame (the game's gain over 1): the sea's draws
@@ -1005,7 +1005,7 @@ index b97f5d7da5..08f937474a 100644
  bool cloud_shadows_enabled() noexcept;
  void set_cloud_shadows(bool enabled) noexcept;
  void set_world_view(const float invView[12], float tanHalfFovy, float aspect, float nearPlane, float seaLevel,
-@@ -83,6 +96,7 @@ constexpr uint32_t kMaxLights = 16;
+@@ -84,6 +97,7 @@ constexpr uint32_t kMaxLights = 16;
  struct Camera {
    std::array<float, 20> view{};
    float farPlane = 0.f;  // 0: infinitely far (aurora_set_world_view_far)

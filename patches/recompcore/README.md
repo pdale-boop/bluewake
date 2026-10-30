@@ -246,7 +246,8 @@ Private Oasis). It softens long shadows toward their tips by the caster's distan
 (DOL_AURORA_SUN_SHADOW_MAP_DEBUG=7, how surfaces face the sun; 8, the shadow in pink), and makes the shadow a colour,
 the shade lit by the sky: HD's on Windfall's dock is about (0.21, 0.39, 0.56) of what is lit. The map has three
 cascades, out to 20,000 units: a fourth held only islands deep in the haze, and shaded Windfall in light-blue blocks
-from across the sea.
+from across the sea. aurora_set_sun_shadow_strength sets how dark its shadows are (BlueWake's menu), and the slope's
+share of the bias far off is 20 texels, against acne on walls edge-on to the sun.
 
 Patch 0191 draws the three vertices left over at the end of a GX_QUADS draw as a triangle, as the hardware does. The
 frontend dropped quads with fewer than four vertices, and the game draws each night star as a three-vertex quad
