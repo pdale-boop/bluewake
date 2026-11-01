@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "5dea6b520063d6e36246a286bc14bddf45657afd",
+      "sha": "23d37e5e10a368681fb6a8a7d56aaf3c89aad5f7",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -732,6 +732,13 @@
             "patches/recompcore/0200-Sun-shadows-Wind-Waker-HD-s-bias-terrain-mix-and-light-rule-its-stage-normals-from-the-host.patch"
           ],
           "evidence": "pdale-boop's: HD's bias (DOL_AURORA_SUN_SHADOW_MAP_HD_BIAS, _CASTER_BIAS 80,3 as HD draws its map), HD's terrain shadow mix (DOL_AURORA_SUN_SHADOW_HD_MIX), aurora_set_sun_hd_light (HD's sun by day, the moon's side by night, its day/night fade) and aurora_set_hd_normals (the pack's optional/hd-normals/<stage>.bin); all off by default."
+        },
+        "hd_effects_and_shadow_pass": {
+          "runtime": "23d37e5e10a368681fb6a8a7d56aaf3c89aad5f7",
+          "tracked_patches": [
+            "patches/recompcore/0201-Aurora-Wind-Waker-HD-s-bloom-SSAO-rim-light-cloud-shadows-and-shadow-pass.patch"
+          ],
+          "evidence": "pdale-boop's, each behind its own switch and off by default: HD's bloom chain and mask, SSAO, rim light, cloud shadows on HD's rule with its ww_shadow_clouds (aurora_set_hd_cloud_texture, the pack's optional/hd-cloud-shadow), and HD's shadow pass (set_sun_shadow_quality(3): three 1024 cascades, a half-size pre-pass, blurred); characters keep BlueWake's caster bias. Read from RenderDoc captures of Cemu on Windows."
         }
       }
     },
