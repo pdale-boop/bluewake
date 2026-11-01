@@ -51,8 +51,9 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # The facing term from Wind Waker HD's own normals, by the GameCube's vertex positions (test switch): patches/recompcore/0199 (pdale-boop).
 # Wind Waker HD's shadow bias, terrain shadow mix and light rule (aurora_set_sun_hd_light), and its normals for the stage in play from the host (aurora_set_hd_normals): patches/recompcore/0200 (pdale-boop).
 # Wind Waker HD's bloom, SSAO, rim light and cloud shadows (with its cloud texture from the host), and its own shadow pass as the "hd" shadow quality: patches/recompcore/0201 (pdale-boop).
+# The shadow pre-pass blended with the last frames' by distance (test switch): patches/recompcore/0202 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=23d37e5e10a368681fb6a8a7d56aaf3c89aad5f7
+RECOMPCORE_SHA=080ff4f22be9a5c6899eee5f2e70d84b4900c1d4
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2
