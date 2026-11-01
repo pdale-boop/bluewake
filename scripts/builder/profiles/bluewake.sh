@@ -48,8 +48,9 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # 0.10.0 pins the bluewake-next commit that merges #45, #48 and 0186-0192.
 # The HD look's sun shadows, occlusion and cloud shadows leave the effects drawn over the scene alone (the spin attack's rings, the Master Sword's glow), as Wind Waker HD does: patches/recompcore/0197 (pdale-boop).
 # Wind Waker HD's facing term in the sun shadows, and its light for the hour in their shade (aurora_set_sun_palette); the gap fill off; the slope term as far off near the camera: patches/recompcore/0198 (pdale-boop).
+# The facing term from Wind Waker HD's own normals, by the GameCube's vertex positions (test switch): patches/recompcore/0199 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=c9ffd623cf7d95e3f2189a43d8c0bfc976dd4e28
+RECOMPCORE_SHA=80ace20618199e02a99be0e082ac63a157244939
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2
