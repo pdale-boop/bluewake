@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "d255c0fe4ecec3c1fd60cb5c92663807755bc1c1",
+      "sha": "54312d333724c71177feef319cf51d4e0ee54d6b",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -753,6 +753,13 @@
             "patches/recompcore/0203-Sun-shadows-the-palms-shaded-and-lit-as-Wind-Waker-HD-s.patch"
           ],
           "evidence": "pdale-boop's: DOL_AURORA_SUN_SHADOW_SKINNED_SCENERY (a palm's leaves are scenery to the sun pass, as HD lights them), smooth normals for skinned scenery lit from either side, DOL_AURORA_HD_VERTEX_COLOURS (HD's colours by position; a draw mixing C0 to KONST by its vertex colour takes HD's light), DOL_AURORA_SUN_SHADOW_SMOOTH_AMBIENT. Off by default."
+        },
+        "hd_cascade_splits": {
+          "runtime": "54312d333724c71177feef319cf51d4e0ee54d6b",
+          "tracked_patches": [
+            "patches/recompcore/0204-Sun-shadows-Wind-Waker-HD-s-cascade-splits-from-the-game-s-camera-each-frame.patch"
+          ],
+          "evidence": "pdale-boop's: aurora_set_sun_cascade_splits, HD's splits each frame (calculateShadowRanges in the WWHD decompilation, its tuning read from cking.rpx); the HD quality's splits and first two cascades follow them. Star Island at the mouse wheel's 2x zoom on Windows: the shadow's change frame to frame over the grass 3.6 to 2.4."
         }
       }
     },
