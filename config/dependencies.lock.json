@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "dd555ad490b91fd04d6b5d578c3642f85c23b359",
+      "sha": "243efa44272fd31591ab7dcc64626cd9d8053cde",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -795,6 +795,13 @@
             "patches/recompcore/0209-Sun-shadows-cascades-that-follow-the-camera-as-Wind-Waker-HD-s.patch"
           ],
           "evidence": "pdale-boop's: the title screen's far island is shaded from its first frames; the sword state is bit-identical; Link on the pier within 0.3/255; GPU time the same with three cascades, about 0.1 ms for the fourth (Linux, Vulkan)."
+        },
+        "hd_cutout_casters": {
+          "runtime": "243efa44272fd31591ab7dcc64626cd9d8053cde",
+          "tracked_patches": [
+            "patches/recompcore/0210-Sun-shadows-alpha-tested-casters-cut-out-by-the-texture-their-alpha-is-from-the-game-s-blended-grass-too.patch"
+          ],
+          "evidence": "pdale-boop's: gxcore cutout tests; over ten states the cut-out path takes 0 to 7 more draws a frame, all characters' bodies of that material; Outset's grass tufts cast, as in HD's own sun map."
         }
       }
     },
