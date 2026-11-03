@@ -64,8 +64,9 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # Wind Waker HD's far blur: its linear ramp from 25,000 to 50,000 and its level for the hour from the host (aurora_set_far_blur_level): patches/recompcore/0212 (pdale-boop).
 # Wind Waker HD's light buffer: the game's point and effect lights on the characters' light (x 1.75) and the lit scenery's (x 1.25), the shade leaving the lamps' light, no torch glow or effect-light stage with it: patches/recompcore/0213 (pdale-boop).
 # Each character's own palettes on Wind Waker HD's actor light, its toon registers against the GameCube's global actor C0 and K0 (aurora_set_actor_light_hd_own): patches/recompcore/0214 (pdale-boop).
+# Wind Waker HD's caster culling in its lit rooms (aurora_set_sun_caster_cull), and its lava glow there from the pack's version 2 room colours: patches/recompcore/0215 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=dfd346550da0383725e997c71472fc197f2ea85d
+RECOMPCORE_SHA=f264e84fa9cd12c5862dbab5262fcf47d35c711f
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2

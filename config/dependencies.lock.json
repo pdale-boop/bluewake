@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "dfd346550da0383725e997c71472fc197f2ea85d",
+      "sha": "f264e84fa9cd12c5862dbab5262fcf47d35c711f",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -830,6 +830,13 @@
             "patches/recompcore/0214-Characters-each-character-s-own-palettes-on-Wind-Waker-HD-s-actor-light-aurora_set_actor_light_hd_own.patch"
           ],
           "evidence": "pdale-boop's: at Windfall (T09a) a kid's shirt goes from (132, 81, 66) to (218, 140, 109) against Cemu's (232, 160, 127); Link's own colours identical; gxcore tests 13/13."
+        },
+        "hd_caster_cull": {
+          "runtime": "f264e84fa9cd12c5862dbab5262fcf47d35c711f",
+          "tracked_patches": [
+            "patches/recompcore/0215-Sun-shadows-Wind-Waker-HD-s-caster-culling-and-lava-glow-in-its-lit-rooms-aurora_set_sun_caster_cull.patch"
+          ],
+          "evidence": "pdale-boop's: in Dragon Roost Cavern's room 0, 225 of HD's 240 map draws cull back faces, the rest none; with them culled the floor is lit and shows Link's shadow, as in HD. Lava glow: Cave01 from 0.47 to 0.97 of HD's brightness and to its hue (red share 0.50, HD 0.49); GanonB from 0.60 to 0.86."
         }
       }
     },
