@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "9ce2f23475f0607a0ecd5356f974b06d897393e1",
+      "sha": "cc8834029f389883eb3e40e29a2452cfbf867f9d",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -781,6 +781,13 @@
             "patches/recompcore/0207-Sun-shadows-the-sea-as-Wind-Waker-HD-s-all-of-it-in-the-sea-mask-foliage-in-front-clearing-the-marks-and-HD-s-sea-term.patch"
           ],
           "evidence": "pdale-boop's: sea_shape() scales the sea square by its position matrix's columns (the mask takes the open sea); blended depth-writing draws clear the marks behind them in the sea mask by their cut-out; on HD's light the sea's shade is HD's sea term in linear light. Without HD's palette the sea is as before."
+        },
+        "hd_actor_clouds": {
+          "runtime": "cc8834029f389883eb3e40e29a2452cfbf867f9d",
+          "tracked_patches": [
+            "patches/recompcore/0208-Characters-Wind-Waker-HD-s-clouds-on-the-characters-light-and-its-cloud-floor-from-the-clock.patch"
+          ],
+          "evidence": "pdale-boop's: the characters take HD's cloud term (cloud = 1 reproduces the traced HD pixels, gxcore tests); the cloud floor from the host's clock matches HD's 0.75 at 07:30, 18:30 and 20:00, where the light's height gave 0.596."
         }
       }
     },

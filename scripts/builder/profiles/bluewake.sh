@@ -57,8 +57,9 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # Wind Waker HD's normals and colours for the objects (aurora_set_hd_object_tables), and its light on the scenery (test switch): patches/recompcore/0205 (pdale-boop).
 # Wind Waker HD's actor light (its toon shader for the characters: ramp switch times the sun shadow, hemisphere shade, rim; aurora_set_actor_light_hd; test switch): patches/recompcore/0206 (pdale-boop).
 # The sea as Wind Waker HD's: the sea rooms' square of sea in the sea mask at the size it is drawn, foliage in front clearing the marks behind it, and HD's own sea term on its light: patches/recompcore/0207 (pdale-boop).
+# Wind Waker HD's clouds on the characters' light, and its cloud floor from the game's clock (aurora_set_cloud_hd_floor): patches/recompcore/0208 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=9ce2f23475f0607a0ecd5356f974b06d897393e1
+RECOMPCORE_SHA=cc8834029f389883eb3e40e29a2452cfbf867f9d
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2
