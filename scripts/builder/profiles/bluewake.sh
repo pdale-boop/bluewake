@@ -46,8 +46,9 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # The scene's brightness from the game, where there is depth and not the sea (Wind Waker HD's sunlight for the hour; the sea found by a mask from its textures): patches/recompcore/0192 (pdale-boop).
 # The guest-alias range query and its registry generation (RecompCore #45), and the guest alias lookup in constant time, the last hit first and then a page index (RecompCore #48): patches/recompcore/0193-0196 (irregularthanis).
 # 0.10.0 pins the bluewake-next commit that merges #45, #48 and 0186-0192.
+# The HD look's sun shadows, occlusion and cloud shadows leave the effects drawn over the scene alone (the spin attack's rings, the Master Sword's glow), as Wind Waker HD does: patches/recompcore/0197 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=78c266d20059560fa5efe68be16062c36623af6a
+RECOMPCORE_SHA=9a716dad3bb26699b2018f00680c33abe7a34150
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2
