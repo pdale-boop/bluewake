@@ -66,8 +66,9 @@ PROFILE_HOST_PGO=scripts/builder/profiles/bluewake/host.profdata
 # Each character's own palettes on Wind Waker HD's actor light, its toon registers against the GameCube's global actor C0 and K0 (aurora_set_actor_light_hd_own): patches/recompcore/0214 (pdale-boop).
 # Wind Waker HD's caster culling in its lit rooms (aurora_set_sun_caster_cull), and its lava glow there from the pack's version 2 room colours: patches/recompcore/0215 (pdale-boop).
 # Wind Waker HD's monotone at the game's grey composite (Frozen Hyrule's sepia; aurora_set_monotone_hd): patches/recompcore/0216 (pdale-boop).
+# Wind Waker HD's fog curve, the square of the GameCube's linear fog while the host has HD's distances in place (aurora_set_fog_hd), and HD's fog after the shade, from HD's start where the game clamps it at 0 (aurora_set_fog_hd_starts): patches/recompcore/0217 (pdale-boop).
 RECOMPCORE_URL=https://github.com/chrissotraidis/RecompCore.git
-RECOMPCORE_SHA=8bc18c05342090dedc5382d7d15f7e4126efdf48
+RECOMPCORE_SHA=ae58690b079f92882f83e43b532a36e1e8af8d82
 DOLRECOMP_SHA=b8b534591cba8ca7cd43943a655ee6e2591cf5de
 DAWN_URL=https://github.com/encounter/dawn/releases/download/v20260618.032059/dawn-ios-arm64.tar.gz
 DAWN_SHA256=ada0bafc173152d80eba7c3b2f9609a71185d5809cbd5dd3251b91a0803a7ae2
