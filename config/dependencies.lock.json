@@ -112,7 +112,7 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "cc8834029f389883eb3e40e29a2452cfbf867f9d",
+      "sha": "dd555ad490b91fd04d6b5d578c3642f85c23b359",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
@@ -788,6 +788,13 @@
             "patches/recompcore/0208-Characters-Wind-Waker-HD-s-clouds-on-the-characters-light-and-its-cloud-floor-from-the-clock.patch"
           ],
           "evidence": "pdale-boop's: the characters take HD's cloud term (cloud = 1 reproduces the traced HD pixels, gxcore tests); the cloud floor from the host's clock matches HD's 0.75 at 07:30, 18:30 and 20:00, where the light's height gave 0.596."
+        },
+        "hd_cascades_follow": {
+          "runtime": "dd555ad490b91fd04d6b5d578c3642f85c23b359",
+          "tracked_patches": [
+            "patches/recompcore/0209-Sun-shadows-cascades-that-follow-the-camera-as-Wind-Waker-HD-s.patch"
+          ],
+          "evidence": "pdale-boop's: the title screen's far island is shaded from its first frames; the sword state is bit-identical; Link on the pier within 0.3/255; GPU time the same with three cascades, about 0.1 ms for the fourth (Linux, Vulkan)."
         }
       }
     },
