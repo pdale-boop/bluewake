@@ -112,11 +112,11 @@
     {
       "id": "recompcore",
       "url": "https://github.com/chrissotraidis/RecompCore",
-      "sha": "ae58690b079f92882f83e43b532a36e1e8af8d82",
+      "sha": "cedeee2e3695caf4f9e852eb67b22964a74d6412",
       "branch": "bluewake-next",
       "license": "GPL-3.0",
       "role": "static-recomp runtime (GXRuntime), vendored Aurora renderer at GXRuntime/graphics/aurora, Dolphin DSP donor sources, and the DolRecomp translator as the DolRecomp submodule; the product source for the iPad build (scripts/ios/build_device.sh)",
-      "verified": "2026-11-03",
+      "verified": "2026-11-04",
       "upstream": {
         "url": "https://github.com/ExpansionPak/RecompCore",
         "base_sha": "5c3611e2bcb03d1578274c956bc3d7b913527ec2"
@@ -851,6 +851,97 @@
             "patches/recompcore/0217-Fog-Wind-Waker-HD-s-curve-the-square-of-the-GameCube-s-linear-fog-while-the-host-has-HD-s-distances-in-place.patch"
           ],
           "evidence": "pdale-boop's: at noon an island 18,000 out takes 0.25 of the fog colour as in HD, not 0.50; Earth Temple's teal and Hyrule Castle's haze stay on the far walls in shade; gxcore tests: the flagged module differs by the square alone; Wind Temple R0f from 0.76 to 0.97 of HD's brightness with HD's fog start."
+        },
+        "hd_hemisphere_per_vertex": {
+          "runtime": "0b1b4624cb66457fd2bd52cd80048ef9d85a7514",
+          "tracked_patches": [
+            "patches/recompcore/0218-fixup-Sun-shadows-Wind-Waker-HD-s-normals-and-colours-for-the-objects-and-the-rooms-and-its-light-on-the-scenery.patch"
+          ],
+          "evidence": "pdale-boop's: on Windfall's path (spawn 7) the shaded dirt's red share 0.281 and blue 0.239 against Cemu's 0.271 and 0.235 (before 0.214 and 0.279); Link and the stone unchanged."
+        },
+        "hd_fog_start_draws": {
+          "runtime": "6fd94790cf45d830e0a1e69b53e8db2fff2ca0f8",
+          "tracked_patches": [
+            "patches/recompcore/0219-fixup-Fog-Wind-Waker-HD-s-curve-the-square-of-the-GameCube-s-linear-fog-while-the-host-has-HD-s-distances-in-place.patch"
+          ],
+          "evidence": "pdale-boop's: Ganon's Tower's far wall half from 0.100 to 0.111 in linear luminance (HD 0.123); gxcore test of the match against GXSetFog's terms and five rejects."
+        },
+        "pack_optional_live": {
+          "runtime": "dcbb8d86c4ab4435600b2ffebc1f22033c5f8600",
+          "tracked_patches": [
+            "patches/recompcore/0220-fixup-Aurora-a-texture-pack-s-optional-folders-load-over-it-only-when-asked.patch"
+          ],
+          "evidence": "pdale-boop's: the HD look off, on, off, on at Outset's dock at noon and at dusk shows the skies of a start with it off and on: HD's clouds go and come back, and the GameCube's horizon bank with them."
+        },
+        "hd_lava_drc": {
+          "runtime": "b4d1006c697fa3c952fa59e191e235b995390949",
+          "tracked_patches": [
+            "patches/recompcore/0221-fixup-Sun-shadows-Wind-Waker-HD-s-normals-and-colours-for-the-objects-and-the-rooms-and-its-light-on-the-scenery.patch"
+          ],
+          "evidence": "pdale-boop's: Dragon Roost Cavern room 11's lit right wall from 0.71 of HD's red to 1.02 (Cemu, 12:00)."
+        },
+        "hd_water_floor": {
+          "runtime": "072ba935205d7a6192f3541e4bda07b72a4786b1",
+          "tracked_patches": [
+            "patches/recompcore/0222-fixup-Sun-shadows-Wind-Waker-HD-s-normals-and-colours-for-the-objects-and-the-rooms-and-its-light-on-the-scenery.patch"
+          ],
+          "evidence": "pdale-boop's: ToG room 0 at 12:00, 16 frames: the floor's linear luminance from 0.155 to 0.098 (Cemu 0.074), the lit caustics from 0.223 to 0.120 (Cemu about 0.10); the rest is the boat's ripple quads. WGSL test of the match and its rejects."
+        },
+        "hd_fog_linear": {
+          "runtime": "13eaf1324e0d50c3eca57c7078f8401978b74c50",
+          "tracked_patches": [
+            "patches/recompcore/0223-fixup-Fog-Wind-Waker-HD-s-curve-the-square-of-the-GameCube-s-linear-fog-while-the-host-has-HD-s-distances-in-place.patch"
+          ],
+          "evidence": "pdale-boop's: far half of the dungeon stops in linear luminance against Cemu: Forbidden Woods R05 0.056 to 0.065 (0.064), its hue back from orange; Earth Temple R00 0.027 to 0.039 (0.037); Wind Temple R02 0.059 to 0.074 (0.073); Ganon's Tower 0.110 to 0.118 (0.123)."
+        },
+        "cascades_stable": {
+          "runtime": "49d8b2c81bb7f9ebb5f9297dd433b455df0f6383",
+          "tracked_patches": [
+            "patches/recompcore/0224-fixup-Sun-shadows-cascades-that-follow-the-camera-as-Wind-Waker-HD-s.patch"
+          ],
+          "evidence": "pdale-boop's: on a camera turn at I_TestR the pre-pass shadow's changed pixels went from 59 to 50 per 10k (34-37 with the camera still), and the crawl along the edges went."
+        },
+        "effects_with_depth": {
+          "runtime": "363fd8dd7b0473dcba6c2c5341f5da16e1f4a72f",
+          "tracked_patches": [
+            "patches/recompcore/0225-fixup-Aurora-the-HD-look-s-shading-leaves-the-effects-drawn-over-the-scene-alone.patch"
+          ],
+          "evidence": "pdale-boop's: Dragon Roost Cavern's lava geysers stay orange in the room's shade (they went blue) and a shutting door's dust no longer shows as dark holes in the haze; frame dumps from five other save states match the build before within noise."
+        },
+        "monotone_haze": {
+          "runtime": "251fb22f44cc1221bb934f627fb9212331221e4a",
+          "tracked_patches": [
+            "patches/recompcore/0226-fixup-Aurora-Wind-Waker-HD-s-monotone-at-the-game-s-grey-composite-aurora_set_monotone_hd.patch"
+          ],
+          "evidence": "pdale-boop's: in Xboss0's sepia replay the heat haze over the lava shows no coloured squares."
+        },
+        "cascades_hd_fit_test": {
+          "runtime": "00b6dc6445305563cec234efd6a88a0c928e8576",
+          "tracked_patches": [
+            "patches/recompcore/0227-fixup-Sun-shadows-cascades-that-follow-the-camera-as-Wind-Waker-HD-s.patch"
+          ],
+          "evidence": "pdale-boop's: HD's fit changed nothing on the Outset turn (27.6 against 27.0 changed pixels per 10k) and made whole-cascade pops at sea, so it stays off."
+        },
+        "cascades_stable_default": {
+          "runtime": "9c91e737be23e6e6cb36a0fd264abfc1b53b5cf4",
+          "tracked_patches": [
+            "patches/recompcore/0228-fixup-Sun-shadows-cascades-that-follow-the-camera-as-Wind-Waker-HD-s.patch"
+          ],
+          "evidence": "pdale-boop's: tried in play on Linux (Nov 3), less flicker while turning; Outset at 10:00 and 16:00 and the sea keep their shadows, with no WGSL or validation errors."
+        },
+        "effects_geysers_dust": {
+          "runtime": "da66ded372f2fc24b53538497aebafcaeb0365bb",
+          "tracked_patches": [
+            "patches/recompcore/0229-fixup-Aurora-the-HD-look-s-shading-leaves-the-effects-drawn-over-the-scene-alone.patch"
+          ],
+          "evidence": "pdale-boop's: the geysers' core is cream with no blue, as with the look off; under a shutting door's dust the shadow band goes from 0.836 of the floor beside it to 1.001 (1.047 with the look off); frame dumps from four other save states match within noise."
+        },
+        "far_cascade_casters": {
+          "runtime": "cedeee2e3695caf4f9e852eb67b22964a74d6412",
+          "tracked_patches": [
+            "patches/recompcore/0230-fixup-Sun-shadows-cascades-that-follow-the-camera-as-Wind-Waker-HD-s.patch"
+          ],
+          "evidence": "pdale-boop's: the Tower of the Gods' six pillars no longer shade its far face, which HD leaves lit (room 0, 12:00, with a rebuilt game module); Link's and the near objects' shadows unchanged; Outset at 10:00 as before."
         }
       }
     },
